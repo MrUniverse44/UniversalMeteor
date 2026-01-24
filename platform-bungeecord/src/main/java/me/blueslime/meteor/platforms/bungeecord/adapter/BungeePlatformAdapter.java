@@ -9,7 +9,7 @@ import net.md_5.bungee.api.plugin.Plugin;
 public interface BungeePlatformAdapter<P extends PlatformPlugin<Listener>> extends PlatformAdapter<P, Plugin, Listener> {
 
     @Override
-    default PlatformAdapterBuilder<P, Plugin, Listener> createAdapter(Class<P> clazz, P plugin) {
+    default PlatformAdapterBuilder<P, Plugin, Listener> createAdapter(Class<P> clazz) {
         return new BungeePlatformAdapterBuilder<>(clazz);
     }
 

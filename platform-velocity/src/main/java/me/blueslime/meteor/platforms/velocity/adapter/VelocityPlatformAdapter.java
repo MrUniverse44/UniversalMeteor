@@ -8,7 +8,7 @@ import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
 public interface VelocityPlatformAdapter<P extends PlatformPlugin<Object>> extends PlatformAdapter<P, ProxyServer, Object> {
 
     @Override
-    default PlatformAdapterBuilder<P, ProxyServer, Object> createAdapter(Class<P> clazz, P plugin) {
+    default PlatformAdapterBuilder<P, ProxyServer, Object> createAdapter(Class<P> clazz) {
         return new VelocityPlatformAdapterBuilder<>(clazz);
     }
 

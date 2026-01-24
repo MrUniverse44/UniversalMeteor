@@ -56,6 +56,15 @@ public abstract class PlatformPlugin<L> implements Implementer {
      */
     @SuppressWarnings("unchecked")
     public final void initialize() {
+        registerImpl(PlatformLogger.class, logger, true);
+        registerImpl(PlatformPlugin.class, this, true);
+        registerImpl(PlatformEvents.class, events, true);
+        registerImpl(PlatformTasks.class, tasks, true);
+        registerImpl(Platforms.class, platform, true);
+        registerImpl(PluginData.class, pluginData, true);
+
+        onPreInitialize();
+
         for (Consumer<Platforms> cb : platformDetectCallbacks) {
             try {
                 cb.accept(platform);
@@ -79,6 +88,8 @@ public abstract class PlatformPlugin<L> implements Implementer {
         loadServices();
     }
 
+    protected void onPreInitialize() {}
+
     /** Hook called after the generic initialize steps. Override in subclasses. */
     protected void onInitialize() {}
 
@@ -89,7 +100,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
      * Add a callback that will be invoked during initialize() with the detected platform.<br>
      * Useful for branching registration logic based on a platform.
      */
-    public PlatformPlugin onPlatformDetect(Consumer<Platforms> callback) {
+    public PlatformPlugin<L> onPlatformDetect(Consumer<Platforms> callback) {
         if (callback != null) platformDetectCallbacks.add(callback);
         return this;
     }
@@ -98,7 +109,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
      * Queue module classes grouped by platform(s). They will be registered automatically<br>
      * when {@link #initialize()} is called if the container applies to the detected platform.
      */
-    public PlatformPlugin registerService(ServiceContainer... containers) {
+    public PlatformPlugin<L> registerService(ServiceContainer... containers) {
         if (containers == null) return this;
         queuedContainers.addAll(Arrays.asList(containers));
         return this;
@@ -109,7 +120,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
      */
     @SuppressWarnings("UnusedReturnValue")
     @SafeVarargs
-    public final PlatformPlugin registerService(Class<? extends Service>... servicesToRegister) {
+    public final PlatformPlugin<L> registerService(Class<? extends Service>... servicesToRegister) {
         if (servicesToRegister == null) return this;
         queuedServiceClasses.addAll(Arrays.asList(servicesToRegister));
         return this;
@@ -118,7 +129,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
     /**
      * Register module instances immediately.
      */
-    public PlatformPlugin registerService(Service... serviceInstances) {
+    public PlatformPlugin<L> registerService(Service... serviceInstances) {
         if (serviceInstances == null) return this;
         for (Service m : serviceInstances) {
             if (m == null) continue;
@@ -131,7 +142,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
      * Register module classes immediately by creating instances via reflection.
      */
     @SafeVarargs
-    public final PlatformPlugin registerServiceNow(Class<? extends Service>... moduleClasses) {
+    public final PlatformPlugin<L> registerServiceNow(Class<? extends Service>... moduleClasses) {
         if (moduleClasses == null) return this;
         for (Class<? extends Service> c : moduleClasses) {
             Service s = createInstance(c);

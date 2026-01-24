@@ -9,7 +9,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public interface PaperPlatformAdapter<P extends PlatformPlugin<Listener>> extends PlatformAdapter<P, JavaPlugin, Listener> {
 
     @Override
-    default PlatformAdapterBuilder<P, JavaPlugin, Listener> createAdapter(Class<P> clazz, P plugin) {
+    default PlatformAdapterBuilder<P, JavaPlugin, Listener> createAdapter(Class<P> clazz) {
         return new PaperPlatformAdapterBuilder<>(clazz);
     }
 
