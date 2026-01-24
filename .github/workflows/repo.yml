@@ -2,7 +2,7 @@ name: Maven Deploy to Nexus
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
