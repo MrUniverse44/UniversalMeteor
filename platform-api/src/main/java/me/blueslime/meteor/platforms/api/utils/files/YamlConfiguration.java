@@ -17,6 +17,8 @@ import java.util.regex.Pattern;
 @SuppressWarnings("all")
 public class YamlConfiguration {
 
+    private static final Pattern KEY_PATTERN = Pattern.compile("^(\\s*)(?:(['\"])(.*?)\\2|([^:'\"\\s]+))\\s*:.*$");
+
     private static final ThreadLocal<Yaml> YAML_INSTANCE = ThreadLocal.withInitial(() -> {
         DumperOptions dumperOptions = new DumperOptions();
         dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
@@ -39,9 +41,7 @@ public class YamlConfiguration {
         if (!file.exists()) {
             return new PluginConfiguration(defaults);
         }
-
         String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
-
         return getPluginConfiguration(defaults, content);
     }
 
@@ -51,6 +51,7 @@ public class YamlConfiguration {
         if (map == null) map = new LinkedHashMap<>();
 
         PluginConfiguration config = new PluginConfiguration(map, defaults);
+
         extractComments(content, config);
 
         return config;
@@ -86,8 +87,6 @@ public class YamlConfiguration {
         List<String> keyHierarchy = new ArrayList<>();
         List<Integer> indentHierarchy = new ArrayList<>();
 
-        Pattern keyPattern = Pattern.compile("^(\\s*)(?:['\"]?([^:'\"\\n]+?)['\"]?)\\s*:.*$");
-
         for (String line : lines) {
             String trimmed = line.trim();
 
@@ -100,10 +99,11 @@ public class YamlConfiguration {
                 continue;
             }
 
-            Matcher matcher = keyPattern.matcher(line);
+            Matcher matcher = KEY_PATTERN.matcher(line);
             if (matcher.find()) {
-                int currentIndent = matcher.group(1).length(); // Longitud de espacios iniciales
-                String keyName = matcher.group(2);
+                int currentIndent = matcher.group(1).length();
+
+                String keyName = matcher.group(3) != null ? matcher.group(3) : matcher.group(4);
 
                 updateHierarchy(keyHierarchy, indentHierarchy, currentIndent);
 
@@ -122,9 +122,9 @@ public class YamlConfiguration {
     }
 
     private static void updateHierarchy(List<String> keys, List<Integer> indents, int currentIndent) {
-        while (!indents.isEmpty() && currentIndent <= indents.getLast()) {
-            keys.removeLast();
-            indents.removeLast();
+        while (!indents.isEmpty() && currentIndent <= indents.get(indents.size() - 1)) {
+            keys.remove(keys.size() - 1);
+            indents.remove(indents.size() - 1);
         }
     }
 
@@ -135,18 +135,16 @@ public class YamlConfiguration {
         List<String> keyHierarchy = new ArrayList<>();
         List<Integer> indentHierarchy = new ArrayList<>();
 
-        Pattern keyPattern = Pattern.compile("^(\\s*)(?:['\"]?([^:'\"\\n]+?)['\"]?)\\s*:.*$");
-
         for (String line : lines) {
             if (line.trim().startsWith("#")) {
                 result.append(line).append("\n");
                 continue;
             }
 
-            Matcher matcher = keyPattern.matcher(line);
+            Matcher matcher = KEY_PATTERN.matcher(line);
             if (matcher.find()) {
                 int currentIndent = matcher.group(1).length();
-                String keyName = matcher.group(2);
+                String keyName = matcher.group(3) != null ? matcher.group(3) : matcher.group(4);
 
                 updateHierarchy(keyHierarchy, indentHierarchy, currentIndent);
                 keyHierarchy.add(keyName);
@@ -162,7 +160,6 @@ public class YamlConfiguration {
                     }
                 }
             }
-
             result.append(line).append("\n");
         }
 

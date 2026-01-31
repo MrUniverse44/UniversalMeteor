@@ -1,8 +1,6 @@
 package me.blueslime.meteor.platforms.api.configuration.handle;
 
 import me.blueslime.meteor.platforms.api.utils.files.PluginConfiguration;
-import me.blueslime.meteor.platforms.api.utils.files.YamlConfiguration;
-import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 
 import java.util.List;
 import java.util.Set;
@@ -62,10 +60,7 @@ public class DefaultSectionConfigurationHandle extends ConfigurationHandle {
      */
     @Override
     public void save() {
-        PluginConsumer.process(
-                () -> YamlConfiguration.save(configuration, file),
-                e -> getLogger().error(e, "Failed to save file: " + file.getName() + " due to: " + e.getMessage())
-        );
+        //TODO: Parent should be the unique that need to save change
     }
 
     /**

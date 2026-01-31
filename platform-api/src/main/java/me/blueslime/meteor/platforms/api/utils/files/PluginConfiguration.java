@@ -7,25 +7,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A light-weight hierarchical configuration container designed to be multi-platform.
- * Keys are dot-separated ("a.b.c") and intermediate sections are represented as PluginConfiguration instances.
- * <br>
- * This class aims to behave similarly to common YAML config abstractions: it supports
- * lazy creation of sections when setting values, default fallbacks, comment storage,
- * and conversion to a plain Map for serialization.
  */
 @SuppressWarnings("SameParameterValue")
 public final class PluginConfiguration {
     public static final PluginConfiguration EMPTY = new PluginConfiguration();
     private static final char SEPARATOR = '.';
-    final Map<String, Object> self;
 
+    final Map<String, Object> self;
     private final Map<String, List<String>> comments;
     private final PluginConfiguration defaults;
 
-    /**
-     * Cache of direct child sections for this node.
-     * Keyed by the immediate child key (not by full path).
-     */
     private final Map<String, PluginConfiguration> sectionCache = new ConcurrentHashMap<>();
 
     /**
@@ -130,31 +121,23 @@ public final class PluginConfiguration {
         }
 
         String root = path.substring(0, index);
-
         PluginConfiguration cached = sectionCache.get(root);
         if (cached != null) return cached;
 
         Object section = self.get(root);
-
-        if (section == null) {
-            PluginConfiguration newDefaults = (defaults != null) ? defaults.getSection(root) : null;
-            PluginConfiguration created = new PluginConfiguration(newDefaults);
-            self.put(root, created);
-            sectionCache.put(root, created);
-            return created;
-        }
 
         if (section instanceof PluginConfiguration configSection) {
             sectionCache.put(root, configSection);
             return configSection;
         }
 
-        PluginConfiguration newSection = new PluginConfiguration((defaults != null) ? defaults.getSection(root) : null);
-        self.put(root, newSection);
-        sectionCache.put(root, newSection);
-        return newSection;
-    }
+        PluginConfiguration newDefaults = (defaults != null) ? defaults.getSection(root) : null;
+        PluginConfiguration created = new PluginConfiguration(newDefaults);
 
+        self.put(root, created);
+        sectionCache.put(root, created);
+        return created;
+    }
     /**
      * Return the child portion of a dot-separated path.
      * For "a.b.c" returns "b.c", for "single" returns "single".
@@ -176,7 +159,6 @@ public final class PluginConfiguration {
      */
     public PluginConfiguration getSection(String path) {
         if (path == null || path.isEmpty()) return this;
-
         String[] parts = path.split("\\.", 2);
         String first = parts[0];
 
@@ -190,38 +172,30 @@ public final class PluginConfiguration {
     }
 
     /**
-     * Retrieve or create the section at the provided path.
-     * This will create intermediate sections if they do not exist.
-     *
-     * @param path dot-separated path
-     * @return the (existing or newly created) PluginConfiguration for the path
-     */
-    public PluginConfiguration getOrCreateSection(String path) {
-        if (path == null || path.isEmpty()) return this;
-
-        int index = path.indexOf(SEPARATOR);
-        if (index == -1) {
-            Object val = self.get(path);
-            if (val instanceof PluginConfiguration cfg) return cfg;
-            PluginConfiguration created = new PluginConfiguration((defaults != null) ? defaults.getSection(path) : null);
-            self.put(path, created);
-            sectionCache.put(path, created);
-            return created;
-        } else {
-            String root = path.substring(0, index);
-            String remainder = path.substring(index + 1);
-            PluginConfiguration rootSection = getSectionFor(root);
-            return rootSection.getOrCreateSection(remainder);
-        }
-    }
-
-    /**
      * Return the immediate keys in this node.
      *
      * @return collection of keys at this level (non-deep)
      */
-    public Collection<String> getKeys() {
-        return new LinkedHashSet<>(self.keySet());
+    public Set<String> getKeys(boolean deep) {
+        Set<String> keys = new LinkedHashSet<>();
+
+        if (defaults != null) {
+            keys.addAll(defaults.getKeys(deep));
+        }
+
+        LinkedHashMap<String, Object> keyCopy =  new LinkedHashMap<>(self);
+
+        for (String k : keyCopy.keySet()) {
+            Object v = keyCopy.get(k);
+            if (deep && v instanceof PluginConfiguration pc) {
+                for (String sub : pc.getKeys(true)) {
+                    keys.add(k + "." + sub);
+                }
+            } else {
+                keys.add(k);
+            }
+        }
+        return keys;
     }
 
     /**
@@ -235,78 +209,17 @@ public final class PluginConfiguration {
      *  - getKeys("a", true)  -> deep children of section 'a' (e.g. "b", "b.c", ...)
      *
      * @param path    dot-separated path to the section (empty or null means this node)
-     * @param getKeys whether to return keys recursively (deep)
+     * @param deep whether to return keys recursively (deep)
      * @return set of keys (empty set if the path does not exist)
      */
-    public Set<String> getKeys(String path, boolean getKeys) {
+    public Set<String> getKeys(String path, boolean deep) {
         if (path == null || path.isEmpty()) {
-            return new LinkedHashSet<>(getKeys(getKeys));
+            return getKeys(deep);
         }
-
-        String[] parts = path.split("\\.");
-
-        PluginConfiguration node = findSectionNoCreate(this, parts, 0);
-
-        if (node == null && this.defaults != null) {
-            node = findSectionNoCreate(this.defaults, parts, 0);
-        }
-
-        if (node == null) {
-            return Collections.emptySet();
-        }
-
-        return new LinkedHashSet<>(node.getKeys(getKeys));
+        PluginConfiguration section = getSection(path);
+        return section.getKeys(deep);
     }
 
-    /**
-     * Helper: traverse the given configuration by parts starting at idx
-     * but DO NOT create any sections. Returns the PluginConfiguration found
-     * or null if any segment is missing or a primitive is encountered.
-     */
-    private static PluginConfiguration findSectionNoCreate(PluginConfiguration cfg, String[] parts, int idx) {
-        PluginConfiguration current = cfg;
-        for (int i = idx; i < parts.length; i++) {
-            Object val = current.self.get(parts[i]);
-            if (val instanceof PluginConfiguration pc) {
-                current = pc;
-            } else {
-                return null;
-            }
-        }
-        return current;
-    }
-
-    /**
-     * Return keys contained in this node.
-     * If deep is true, returns nested keys concatenated with '.' (e.g. "a.b").
-     *
-     * @param deep whether to return keys recursively
-     * @return set of keys (flat or deep)
-     */
-    public Set<String> getKeys(boolean deep) {
-        Set<String> keys = new LinkedHashSet<>();
-        for (String k : self.keySet()) {
-            Object v = self.get(k);
-            if (deep && v instanceof PluginConfiguration pc) {
-                for (String sub : pc.getKeys(true)) {
-                    keys.add(k + "." + sub);
-                }
-            } else {
-                keys.add(k);
-            }
-        }
-        return keys;
-    }
-
-    /**
-     * Retrieve the value at the given path, returning the provided default if not found.
-     * This method resolves the path lazily and creates intermediate sections when required.
-     *
-     * @param path dot-separated path
-     * @param def  fallback value if not present
-     * @param <T>  expected return type
-     * @return value at path or def
-     */
     @SuppressWarnings("unchecked")
     public <T> T getOf(String path, T def) {
         PluginConfiguration section = getSectionFor(path);
@@ -323,40 +236,20 @@ public final class PluginConfiguration {
         }
     }
 
-    /**
-     * Retrieve the value at the given path, consulting defaults if necessary.
-     *
-     * @param path dot-separated path
-     * @return value or null if not found
-     */
     public Object get(String path) {
         return getOf(path, getDefault(path));
     }
 
-    /**
-     * Retrieve the default value for the provided path (if defaults exist).
-     *
-     * @param path dot-separated path
-     * @return default value or null
-     */
     public Object getDefault(String path) {
         return (defaults == null) ? null : defaults.get(path);
     }
 
-    /**
-     * Set a value at the provided path. If value is a Map, it will be converted to a child section.
-     * Setting null removes the entry.
-     *
-     * @param path  dot-separated path
-     * @param value value to set, a Map will create a section, null will remove
-     */
     public void set(String path, Object value) {
         PluginConfiguration section = getSectionFor(path);
         String key = getChild(path);
 
         if (section == this) {
             Object previous = self.get(key);
-
             if (value == null) {
                 self.remove(key);
                 sectionCache.remove(key);
@@ -377,41 +270,20 @@ public final class PluginConfiguration {
         }
     }
 
-    /**
-     * Check whether a path exists as either a value or a section.
-     * This method DOES NOT create missing sections and will consult defaults if the value isn't present locally.
-     *
-     * @param path dot-separated path
-     * @return true if a value or section exists at the path (locally or in defaults)
-     */
     public boolean contains(String path) {
         if (path == null || path.isEmpty()) return false;
-        String[] parts = path.split("\\.");
-
-        if (containsIn(this, parts, 0)) return true;
-        return defaults != null && containsIn(defaults, parts, 0);
+        if (containsIn(this, path.split("\\."), 0)) return true;
+        return defaults != null && defaults.contains(path);
     }
 
-    /**
-     * Helper that checks existence without mutating the configuration.
-     * Traverses parts from idx to end against the provided cfg.
-     *
-     * @param cfg   configuration node to traverse
-     * @param parts path split by '.'
-     * @param idx   starting index
-     * @return true if found
-     */
     private static boolean containsIn(PluginConfiguration cfg, String[] parts, int idx) {
         PluginConfiguration current = cfg;
         for (int i = idx; i < parts.length; i++) {
             String part = parts[i];
             Object val = current.self.get(part);
-            if (val == null) {
-                return false;
-            }
-            if (i == parts.length - 1) {
-                return true;
-            }
+            if (val == null) return false;
+            if (i == parts.length - 1) return true;
+
             if (val instanceof PluginConfiguration pc) {
                 current = pc;
             } else {
@@ -442,11 +314,7 @@ public final class PluginConfiguration {
      */
     public int getInt(String path, int def) {
         Object val = get(path);
-        if (val instanceof Number n) return n.intValue();
-        try {
-            if (val instanceof String s) return Integer.parseInt(s);
-        } catch (NumberFormatException ignored) {}
-        return def;
+        return Tools.toInteger(String.valueOf(val), def);
     }
 
     /**
@@ -458,11 +326,7 @@ public final class PluginConfiguration {
      */
     public double getDouble(String path, double def) {
         Object val = get(path);
-        if (val instanceof Number n) return n.doubleValue();
-        try {
-            if (val instanceof String s) return Double.parseDouble(s);
-        } catch (NumberFormatException ignored) {}
-        return def;
+        return Tools.toDouble(String.valueOf(val), (float)def);
     }
 
     /**
@@ -474,11 +338,7 @@ public final class PluginConfiguration {
      */
     public long getLong(String path, long def) {
         Object val = get(path);
-        if (val instanceof Number n) return n.longValue();
-        try {
-            if (val instanceof String s) return Long.parseLong(s);
-        } catch (NumberFormatException ignored) {}
-        return def;
+        return Tools.toLong(String.valueOf(val), (int)def);
     }
 
     /**
@@ -491,8 +351,7 @@ public final class PluginConfiguration {
     public boolean getBoolean(String path, boolean def) {
         Object val = get(path);
         if (val instanceof Boolean b) return b;
-        if (val instanceof String s) return Boolean.parseBoolean(s);
-        return def;
+        return Boolean.parseBoolean(String.valueOf(val));
     }
 
     /**
