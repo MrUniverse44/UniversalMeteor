@@ -8,7 +8,7 @@
     <parent>
         <groupId>me.blueslime.meteor</groupId>
         <artifactId>UniversalMeteor</artifactId>
-        <version>3.0.1</version>
+        <version>3.0.2</version>
     </parent>
 
     <artifactId>platform-hytale-proxy</artifactId>
