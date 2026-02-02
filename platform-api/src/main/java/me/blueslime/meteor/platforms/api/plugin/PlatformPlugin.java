@@ -10,6 +10,7 @@ import me.blueslime.meteor.platforms.api.info.PluginInfo;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.service.ServiceContainer;
 import me.blueslime.meteor.platforms.api.tasks.PlatformTasks;
+import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -26,7 +27,6 @@ import java.util.function.Consumer;
 public abstract class PlatformPlugin<L> implements Implementer {
 
     private final List<Consumer<Platforms>> platformDetectCallbacks = new CopyOnWriteArrayList<>();
-    private final List<Class<? extends Service>> queuedServiceClasses = new ArrayList<>();
     private final List<ServiceContainer> queuedContainers = new ArrayList<>();
 
     private final Map<Class<?>, Service> services = new LinkedHashMap<>();
@@ -54,7 +54,6 @@ public abstract class PlatformPlugin<L> implements Implementer {
      *  - register queued ModuleContainers and queued module classes<br>
      *  - call {@link #onInitialize()} hook for subclass-specific init<
      */
-    @SuppressWarnings("unchecked")
     public final void initialize() {
         registerImpl(PlatformLogger.class, logger, true);
         registerImpl(PlatformPlugin.class, this, true);
@@ -80,10 +79,6 @@ public abstract class PlatformPlugin<L> implements Implementer {
             }
         }
 
-        if (!queuedServiceClasses.isEmpty()) {
-            registerService(queuedServiceClasses.toArray(new Class[0]));
-        }
-
         onInitialize();
         loadServices();
     }
@@ -94,7 +89,9 @@ public abstract class PlatformPlugin<L> implements Implementer {
     protected void onInitialize() {}
 
     /** Hook when a platform-detection callback throws. Override to log if you want. */
-    protected void onCallbackException(Throwable t) {}
+    protected void onCallbackException(Throwable t) {
+        logger.error(t, t.getMessage() != null ? t.getMessage() : "");
+    }
 
     /**
      * Add a callback that will be invoked during initialize() with the detected platform.<br>
@@ -122,8 +119,16 @@ public abstract class PlatformPlugin<L> implements Implementer {
     @SafeVarargs
     public final PlatformPlugin<L> registerService(Class<? extends Service>... servicesToRegister) {
         if (servicesToRegister == null) return this;
-        queuedServiceClasses.addAll(Arrays.asList(servicesToRegister));
-        return this;
+        Set<Service> serviceSet = new LinkedHashSet<>();
+        for (Class<? extends Service> clazz : servicesToRegister) {
+            Service instance = PluginConsumer.ofUnchecked(
+                () -> createInstance(clazz),
+                this::onCallbackException,
+                () -> null
+            );
+            if (instance != null) serviceSet.add(instance);
+        }
+        return registerService(serviceSet.toArray(new Service[0]));
     }
 
     /**
@@ -157,7 +162,17 @@ public abstract class PlatformPlugin<L> implements Implementer {
     }
 
     /** Called after a service is registered (override to wire registration maps, logger, etc). */
-    protected void onServiceRegistered(Service service) {}
+    protected void onServiceRegistered(Service service) {
+        if (service.isPersistent()) {
+            autoRegister(service.getClass(), service);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    protected final <T extends Service> void autoRegister(Class<T> clazz, Service service) {
+        registerImpl(clazz, (T) service, true);
+        service.registerImplementedService(service);
+    }
 
     // --- lifecycle helpers to load / initialize modules (similar to your old loadModules) ---
 
