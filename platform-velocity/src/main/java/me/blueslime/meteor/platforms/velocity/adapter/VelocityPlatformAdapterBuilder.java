@@ -41,6 +41,9 @@ public class VelocityPlatformAdapterBuilder<P extends PlatformPlugin<Object>> ex
     @Override
     public PlatformAdapterBuilder<P, ProxyServer, Object> registerMainClass(ProxyServer proxyInstance) {
         final Platforms paper = Platforms.detectPaper();
+
+        Implements.setEntry(ProxyServer.class, proxyInstance, true);
+
         info.setPlatform(paper);
         info.setPlatformEvents(new VelocityPlatformEvents(proxyInstance));
         info.setTasks(new VelocityPlatformTasks(proxyInstance));

@@ -1,5 +1,6 @@
 package me.blueslime.meteor.platforms.spigot.adapter;
 
+import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.Platforms;
 import me.blueslime.meteor.platforms.api.adapter.PlatformAdapterBuilder;
 import me.blueslime.meteor.platforms.api.data.PluginData;
@@ -21,6 +22,8 @@ public class SpigotPlatformAdapterBuilder<P extends PlatformPlugin<Listener>> ex
     @Override
     public PlatformAdapterBuilder<P, JavaPlugin, Listener> registerMainClass(JavaPlugin pluginInstance) {
         final PluginData data = new SpigotPluginData(pluginInstance);
+
+        Implements.setEntry(JavaPlugin.class, pluginInstance, true);
 
         info.setPluginData(data);
         info.setPlatform(Platforms.SPIGOT);

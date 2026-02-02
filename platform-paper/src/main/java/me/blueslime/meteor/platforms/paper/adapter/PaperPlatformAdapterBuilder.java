@@ -1,5 +1,6 @@
 package me.blueslime.meteor.platforms.paper.adapter;
 
+import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.Platforms;
 import me.blueslime.meteor.platforms.api.adapter.PlatformAdapterBuilder;
 import me.blueslime.meteor.platforms.api.data.PluginData;
@@ -26,6 +27,8 @@ public class PaperPlatformAdapterBuilder<P extends PlatformPlugin<Listener>> ext
         final PluginData data = paper.is(Platforms.MODERN_PAPER)
             ? new ModernPaperPluginData(pluginInstance)
             : new LegacyPaperPluginData(pluginInstance);
+
+        Implements.setEntry(JavaPlugin.class, pluginInstance, true);
 
         info.setPluginData(data);
         info.setPlatform(paper);

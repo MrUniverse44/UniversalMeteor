@@ -1,5 +1,6 @@
 package me.blueslime.meteor.platforms.bungeecord.adapter;
 
+import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.Platforms;
 import me.blueslime.meteor.platforms.api.adapter.PlatformAdapterBuilder;
 import me.blueslime.meteor.platforms.api.data.PluginData;
@@ -22,6 +23,8 @@ public class BungeePlatformAdapterBuilder<P extends PlatformPlugin<Listener>> ex
     @Override
     public PlatformAdapterBuilder<P, Plugin, Listener> registerMainClass(Plugin pluginInstance) {
         final PluginData data = new BungeePluginData(pluginInstance);
+
+        Implements.setEntry(Plugin.class, pluginInstance, true);
 
         info.setPluginData(data);
         info.setPlatform(Platforms.BUNGEECORD);
