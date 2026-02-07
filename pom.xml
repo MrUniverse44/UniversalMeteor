@@ -6,7 +6,7 @@
 
     <groupId>me.blueslime.meteor</groupId>
     <artifactId>UniversalMeteor</artifactId>
-    <version>3.0.3</version>
+    <version>3.0.4</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -22,6 +22,7 @@
         <module>modules-bungeecord</module>
         <!-- Platforms General -->
         <module>platform-api</module>
+        <module>platform-spiper</module>
         <module>platform-paper</module>
         <module>platform-spigot</module>
         <module>platform-velocity</module>

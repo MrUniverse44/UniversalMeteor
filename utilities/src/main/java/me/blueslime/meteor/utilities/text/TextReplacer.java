@@ -1,6 +1,7 @@
 package me.blueslime.meteor.utilities.text;
 
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -8,10 +9,19 @@ import java.util.List;
 import java.util.Map;
 
 public class TextReplacer {
+    public static final TextReplacer EMPTY = new TextReplacer(true);
     private final Map<String, String> replacements;
 
     private TextReplacer() {
         this.replacements = new HashMap<>();
+    }
+
+    protected TextReplacer(boolean empty) {
+        if (empty) {
+            this.replacements = Map.of();
+        } else {
+            this.replacements = new HashMap<>();
+        }
     }
 
     private TextReplacer(Map<String, String> replacements) {

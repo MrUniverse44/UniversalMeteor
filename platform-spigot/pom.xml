@@ -8,7 +8,7 @@
     <parent>
         <groupId>me.blueslime.meteor</groupId>
         <artifactId>UniversalMeteor</artifactId>
-        <version>3.0.3</version>
+        <version>3.0.4</version>
     </parent>
 
     <artifactId>platform-spigot</artifactId>
@@ -42,6 +42,18 @@
         <dependency>
             <groupId>me.blueslime.meteor</groupId>
             <artifactId>platform-api</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>me.blueslime.meteor</groupId>
+            <artifactId>color-api</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>me.blueslime.meteor</groupId>
+            <artifactId>platform-spiper</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
         </dependency>

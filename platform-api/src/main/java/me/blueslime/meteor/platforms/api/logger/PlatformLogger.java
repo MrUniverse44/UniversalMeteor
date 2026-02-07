@@ -40,7 +40,6 @@ public class PlatformLogger implements IPlatformLogger{
     public void send(String... messages) {
         if (messages == null || messages.length == 0) return;
         String unified = String.join("\n", messages);
-        // sender es responsable de convertir a Component si lo necesita.
         sender.accept(unified);
 
     }

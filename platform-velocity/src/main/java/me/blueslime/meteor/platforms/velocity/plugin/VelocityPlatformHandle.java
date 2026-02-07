@@ -84,7 +84,7 @@ public class VelocityPlatformHandle implements PlatformHandle {
             .filter(c -> c.getInstance().isPresent())
             .map(p -> p.getInstance().get().getClass().getClassLoader())
             .filter(Objects::nonNull)
-            .filter(cl -> cl != myCL) // evita incluir el classloader del plugin base como fallback
+            .filter(cl -> cl != myCL)
             .distinct()
             .toList();
 

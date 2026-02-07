@@ -1,11 +1,14 @@
 package me.blueslime.meteor.platforms.spigot.adapter;
 
+import me.blueslime.meteor.color.renders.BungeeRenderer;
 import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.Platforms;
 import me.blueslime.meteor.platforms.api.adapter.PlatformAdapterBuilder;
+import me.blueslime.meteor.platforms.api.commands.PlatformCommands;
 import me.blueslime.meteor.platforms.api.data.PluginData;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
+import me.blueslime.meteor.platforms.spigot.commands.SpigotPlatformCommandProvider;
 import me.blueslime.meteor.platforms.spigot.data.SpigotPluginData;
 import me.blueslime.meteor.platforms.spigot.events.SpigotPlatformEvents;
 import me.blueslime.meteor.platforms.spigot.tasks.SpigotPlatformTasks;
@@ -27,6 +30,7 @@ public class SpigotPlatformAdapterBuilder<P extends PlatformPlugin<Listener>> ex
 
         info.setPluginData(data);
         info.setPlatform(Platforms.SPIGOT);
+        info.setCommands(new PlatformCommands(new SpigotPlatformCommandProvider(pluginInstance)));
         info.setPlatformEvents(new SpigotPlatformEvents(pluginInstance));
         info.setTasks(new SpigotPlatformTasks(pluginInstance));
         info.setLogger(
@@ -35,8 +39,8 @@ public class SpigotPlatformAdapterBuilder<P extends PlatformPlugin<Listener>> ex
                 message -> {
                     ConsoleCommandSender console = pluginInstance.getServer().getConsoleSender();
 
-                    console.sendMessage(
-                        message
+                    console.spigot().sendMessage(
+                        BungeeRenderer.create(message)
                     );
                 }
             )

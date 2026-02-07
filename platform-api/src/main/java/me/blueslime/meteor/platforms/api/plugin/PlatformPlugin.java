@@ -3,6 +3,7 @@ package me.blueslime.meteor.platforms.api.plugin;
 import me.blueslime.meteor.implementation.Implementer;
 import me.blueslime.meteor.implementation.service.Service;
 import me.blueslime.meteor.platforms.api.Platforms;
+import me.blueslime.meteor.platforms.api.commands.PlatformCommands;
 import me.blueslime.meteor.platforms.api.configuration.PlatformConfigurations;
 import me.blueslime.meteor.platforms.api.data.PluginData;
 import me.blueslime.meteor.platforms.api.events.PlatformEvents;
@@ -38,10 +39,12 @@ public abstract class PlatformPlugin<L> implements Implementer {
     protected PlatformLogger logger;
     protected PluginData pluginData;
     protected PlatformTasks tasks;
+    protected PlatformCommands commands;
 
     public PlatformPlugin(PluginInfo<L> info) {
         this.platform = info.getPlatform() == null ? Platforms.UNIVERSAL : info.getPlatform();
         this.pluginData = info.getPluginData();
+        this.commands = info.getCommands();
         this.events = info.getPlatformEvents();
         this.logger = info.getLogger();
         this.tasks = info.getTasks();
@@ -61,6 +64,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
         registerImpl(PlatformTasks.class, tasks, true);
         registerImpl(Platforms.class, platform, true);
         registerImpl(PluginData.class, pluginData, true);
+        registerImpl(PlatformCommands.class, commands, true);
 
         onPreInitialize();
 
@@ -204,6 +208,10 @@ public abstract class PlatformPlugin<L> implements Implementer {
 
     public PlatformLogger getLogger() {
         return logger;
+    }
+
+    public PlatformCommands getCommands() {
+        return commands;
     }
 
     public PlatformTasks getTaskScheduler() {
