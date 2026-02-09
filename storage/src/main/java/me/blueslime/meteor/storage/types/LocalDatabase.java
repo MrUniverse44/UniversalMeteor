@@ -4,7 +4,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.sql.*;
-import java.util.logging.Logger;
 
 @SuppressWarnings("unused")
 public class LocalDatabase extends SQLDatabase {
@@ -17,11 +16,10 @@ public class LocalDatabase extends SQLDatabase {
     /**
      * Creates a new SQL Database.
      *
-     * @param logger       logger instance
      * @param databaseName The name of the MySQL database.
      */
-    public LocalDatabase(@NotNull Logger logger, @NotNull String databaseName, @NotNull File folder) {
-        super(logger, "localhost", databaseName, "root", "", 3306);
+    public LocalDatabase(@NotNull String databaseName, @NotNull File folder) {
+        super("localhost", databaseName, "root", "", 3306);
         this.name = databaseName + (databaseName.endsWith(".db") ? "" : ".db");
         this.folder = folder;
     }
@@ -34,7 +32,7 @@ public class LocalDatabase extends SQLDatabase {
                 boolean folderCreation = folder.mkdirs();
                 boolean databaseFileCreation = databaseFile.createNewFile();
                 if (folderCreation && databaseFileCreation) {
-                    logger.info("Local database file: '" + name + "' has been created for first time.");
+                    getLogger().info("Local database file: '" + name + "' has been created for first time.");
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to create SQLite database file: " + e);

@@ -1,5 +1,6 @@
 package me.blueslime.meteor.storage.database;
 
+import me.blueslime.meteor.platforms.api.service.PlatformService;
 import me.blueslime.meteor.storage.interfaces.StorageObject;
 import me.blueslime.meteor.storage.mapper.ObjectMapper;
 import me.blueslime.meteor.storage.references.ReferencedObject;
@@ -9,14 +10,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public abstract class StorageDatabase {
+public abstract class StorageDatabase implements PlatformService {
 
     private final ObjectMapper mapper;
-    protected final Logger logger;
 
-    public StorageDatabase(Logger logger) {
-        this.mapper = new ObjectMapper(logger);
-        this.logger = logger;
+    public StorageDatabase() {
+        this.mapper = new ObjectMapper();
     }
 
     public abstract <T extends StorageObject> CompletableFuture<Optional<ReferencedObject>> loadByExtraIdentifierAsync(Class<T> clazz, String extraIdentifier);
@@ -45,10 +44,10 @@ public abstract class StorageDatabase {
 
     protected void logError(String message, Exception e) {
         if (e == null) {
-            logger.log(Level.SEVERE, message);
+            getLogger().error(message);
             return;
         }
-        logger.log(Level.SEVERE, message, e);
+        getLogger().error(e, message);
     }
 
     public ObjectMapper mapper() {

@@ -1,5 +1,6 @@
 package me.blueslime.meteor.storage.messenger.channels.types;
 
+import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.storage.mapper.ObjectMapper;
 import me.blueslime.meteor.storage.messenger.channels.BaseChannel;
 import me.blueslime.meteor.storage.messenger.channels.cache.ChannelCache;
@@ -9,7 +10,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
 
 public abstract class TextChannel extends BaseChannel {
 
@@ -21,7 +21,7 @@ public abstract class TextChannel extends BaseChannel {
         super(messenger, cache);
     }
 
-    public TextChannel(Messenger messenger, ObjectMapper mapper, ChannelCache cache, Logger logger) {
+    public TextChannel(Messenger messenger, ObjectMapper mapper, ChannelCache cache, PlatformLogger logger) {
         super(messenger, mapper, cache, logger);
     }
 
@@ -35,7 +35,7 @@ public abstract class TextChannel extends BaseChannel {
             payload.put("messages", new ArrayList<>());
         }
 
-        String json = objectMapper.toJsonCompatible(payload);
+        String json = objectMapper.toJson(payload);
         publishRaw(json);
     }
 }

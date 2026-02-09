@@ -2,7 +2,6 @@ package me.blueslime.meteor.storage.types;
 
 import me.blueslime.meteor.storage.database.StorageDatabase;
 import me.blueslime.meteor.storage.interfaces.*;
-
 import me.blueslime.meteor.storage.references.ReferencedObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
@@ -14,7 +13,6 @@ import org.bson.Document;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Logger;
 
 import static com.mongodb.client.model.Filters.eq;
 
@@ -27,8 +25,7 @@ public class MongoDatabase extends StorageDatabase {
     private final String uri;
     private final String databaseName;
 
-    public MongoDatabase(Logger logger, String uri, String databaseName) {
-        super(logger);
+    public MongoDatabase(String uri, String databaseName) {
         this.uri = uri;
         this.databaseName = databaseName;
     }
@@ -61,30 +58,26 @@ public class MongoDatabase extends StorageDatabase {
     @Override
     public void saveOrUpdateSync(StorageObject obj) {
         ensureConnected();
+
+        Document doc = mapper().toDocument(obj);
+
         String collectionName = obj.getClass().getSimpleName();
         String id = extractIdentifier(obj);
-        Set<String> extraId = extractExtraIdentifier(obj);
 
-        
-        Map<String,Object> map = mapper().toMap(obj);
-        
-        Document doc = new Document(map);
-
-        
         MongoCollection<Document> coll = database.getCollection(collectionName);
         ReplaceOptions opts = new ReplaceOptions().upsert(true);
+
         if (id != null) {
             coll.replaceOne(eq("_id", id), doc, opts);
         } else {
             coll.insertOne(doc);
         }
 
-        
-        MongoCollection<Document> collectionNaming = database.getCollection(obj.getClass().getSimpleName() + "-StringNaming");
-
+        Set<String> extraId = extractExtraIdentifier(obj);
         if (id != null && !extraId.isEmpty()) {
-            Document idFetch = new Document();
-            idFetch.append("referenced", id);
+            MongoCollection<Document> collectionNaming = database.getCollection(collectionName + "-StringNaming");
+
+            Document idFetch = new Document("referenced", id);
 
             for (String extra : extraId) {
                 Document completed = new Document();
@@ -94,48 +87,10 @@ public class MongoDatabase extends StorageDatabase {
                 collectionNaming.replaceOne(
                         eq("_id", extra.toLowerCase(Locale.ENGLISH)),
                         completed,
-                        new ReplaceOptions()
-                                .upsert(true)
+                        opts
                 );
             }
         }
-    }
-
-    private Set<String> extractExtraIdentifier(StorageObject obj) {
-        Set<String> extraIdentifiers = new HashSet<>();
-
-        for (var field : obj.getClass().getDeclaredFields()) {
-            if (field.isAnnotationPresent(StorageExtraIdentifier.class)) {
-                field.setAccessible(true);
-                try {
-                    Object val = field.get(obj);
-                    if (val != null) {
-                        extraIdentifiers.add(val.toString());
-                    }
-                } catch (Exception e) {
-                    logError("Failed to extract extra identifier", e);
-                }
-            }
-        }
-
-        return extraIdentifiers;
-    }
-
-    private String extractIdentifier(StorageObject obj) {
-        
-        for (var field : obj.getClass().getDeclaredFields()) {
-            if (field.isAnnotationPresent(StorageIdentifier.class)) {
-                field.setAccessible(true);
-                try {
-                    Object val = field.get(obj);
-                    return val != null ? val.toString() : null;
-                } catch (Exception e) {
-                    logError("Failed to extract identifier", e);
-                    return null;
-                }
-            }
-        }
-        return null;
     }
 
     @Override
@@ -155,14 +110,12 @@ public class MongoDatabase extends StorageDatabase {
 
         if (doc != null) {
             String original = doc.getString("extra");
-
             Document document = (Document) doc.get("data");
-            String reference = document.getString("referenced");
 
-            return Optional.of(new ReferencedObject(
-                    original,
-                    reference
-            ));
+            if (document != null) {
+                String reference = document.getString("referenced");
+                return Optional.of(new ReferencedObject(original, reference));
+            }
         }
         return Optional.empty();
     }
@@ -177,10 +130,12 @@ public class MongoDatabase extends StorageDatabase {
     public <T extends StorageObject> Optional<T> loadByIdSync(Class<T> clazz, String identifier) {
         ensureConnected();
         MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
+
         Document doc = coll.find(eq("_id", identifier)).first();
         if (doc == null) return Optional.empty();
 
-        T obj = mapper().fromMap(clazz, doc, identifier);
+        T obj = mapper().fromDocument(clazz, doc);
+
         return Optional.ofNullable(obj);
     }
 
@@ -207,11 +162,49 @@ public class MongoDatabase extends StorageDatabase {
         ensureConnected();
         Set<T> results = new HashSet<>();
         MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
+
         for (Document doc : coll.find()) {
-            String id = doc.getString("_id");
-            T obj = mapper().fromMap(clazz, doc, id);
+            T obj = mapper().fromDocument(clazz, doc);
             if (obj != null) results.add(obj);
         }
         return results;
+    }
+
+    private String extractIdentifier(StorageObject obj) {
+        for (Class<?> c = obj.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (var field : c.getDeclaredFields()) {
+                if (field.isAnnotationPresent(StorageIdentifier.class)) {
+                    field.setAccessible(true);
+                    try {
+                        Object val = field.get(obj);
+                        return val != null ? val.toString() : null;
+                    } catch (Exception e) {
+                        logError("Failed to extract identifier", e);
+                        return null;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private Set<String> extractExtraIdentifier(StorageObject obj) {
+        Set<String> extraIdentifiers = new HashSet<>();
+        for (Class<?> c = obj.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (var field : c.getDeclaredFields()) {
+                if (field.isAnnotationPresent(StorageExtraIdentifier.class)) {
+                    field.setAccessible(true);
+                    try {
+                        Object val = field.get(obj);
+                        if (val != null) {
+                            extraIdentifiers.add(val.toString());
+                        }
+                    } catch (Exception e) {
+                        logError("Failed to extract extra identifier", e);
+                    }
+                }
+            }
+        }
+        return extraIdentifiers;
     }
 }

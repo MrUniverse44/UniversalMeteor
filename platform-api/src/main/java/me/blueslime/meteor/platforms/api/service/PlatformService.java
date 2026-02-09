@@ -3,6 +3,7 @@ package me.blueslime.meteor.platforms.api.service;
 import me.blueslime.meteor.implementation.Implementer;
 import me.blueslime.meteor.implementation.service.Service;
 import me.blueslime.meteor.platforms.api.Platforms;
+import me.blueslime.meteor.platforms.api.configuration.PlatformConfigurations;
 import me.blueslime.meteor.platforms.api.data.PluginData;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
@@ -28,6 +29,10 @@ public interface PlatformService extends Service, Implementer {
 
     default PluginData getPluginData() {
         return fetch(PluginData.class);
+    }
+
+    default PlatformConfigurations getConfigurationProvider() {
+        return fetch(PlatformConfigurations.class);
     }
 
 }

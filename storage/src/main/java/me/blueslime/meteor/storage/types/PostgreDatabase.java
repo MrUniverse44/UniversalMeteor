@@ -6,7 +6,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.logging.Logger;
 
 public class PostgreDatabase extends SQLDatabase {
 
@@ -15,15 +14,14 @@ public class PostgreDatabase extends SQLDatabase {
     /**
      * Creates a new SQL Database.
      *
-     * @param logger       logger instance
      * @param host         The host of the MySQL server.
      * @param databaseName The name of the MySQL database.
      * @param user         The username for the MySQL database.
      * @param password     The password for the MySQL database.
      * @param port         The port of the MySQL server.
      */
-    public PostgreDatabase(@NotNull Logger logger, @NotNull String host, @NotNull String databaseName, @NotNull String user, @Nullable String password, int port) {
-        super(logger, host, databaseName, user, password, port);
+    public PostgreDatabase(@NotNull String host, @NotNull String databaseName, @NotNull String user, @Nullable String password, int port) {
+        super(host, databaseName, user, password, port);
     }
 
     @Override

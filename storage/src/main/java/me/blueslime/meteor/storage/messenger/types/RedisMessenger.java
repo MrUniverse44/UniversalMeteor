@@ -9,13 +9,12 @@ import me.blueslime.meteor.storage.messenger.channels.parameter.types.ChannelMes
 import redis.clients.jedis.*;
 import redis.clients.jedis.params.XReadGroupParams;
 import redis.clients.jedis.resps.StreamEntry;
+import org.bson.Document;
 
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 @SuppressWarnings("deprecation")
 public class RedisMessenger implements Messenger {
@@ -23,7 +22,6 @@ public class RedisMessenger implements Messenger {
     public enum SubscribeMode { PUBSUB, STREAMS }
 
     private final JedisPool pool;
-    private final Logger logger;
     private final ObjectMapper objectMapper;
     private final RedisMessengerConfig config;
 
@@ -31,34 +29,27 @@ public class RedisMessenger implements Messenger {
     private final ExecutorService subscriberExecutor;
     private final ExecutorService processingExecutor;
     private final ScheduledExecutorService reconnectScheduler;
-
-    
     private final ConcurrentHashMap<String, SubscriptionHandle> subscriptions = new ConcurrentHashMap<>();
 
-    public RedisMessenger(String redisUri, ObjectMapper objectMapper, Logger logger, RedisMessengerConfig cfg) {
+    public RedisMessenger(String redisUri, ObjectMapper objectMapper, RedisMessengerConfig cfg) {
         this.pool = new JedisPool(redisUri);
-        this.logger = logger;
         this.objectMapper = objectMapper;
         this.config = cfg != null ? cfg : RedisMessengerConfig.builder();
-
         this.publisherExecutor = Executors.newFixedThreadPool(this.config.getPublisherThreads(), r -> {
             Thread t = new Thread(r, "redis-pub");
             t.setDaemon(true);
             return t;
         });
-
         this.subscriberExecutor = Executors.newFixedThreadPool(this.config.getSubscriberThreads(), r -> {
             Thread t = new Thread(r, "redis-sub");
             t.setDaemon(true);
             return t;
         });
-
         this.processingExecutor = Executors.newFixedThreadPool(this.config.getProcessingThreads(), r -> {
             Thread t = new Thread(r, "redis-processor");
             t.setDaemon(true);
             return t;
         });
-
         this.reconnectScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "redis-reconnect");
             t.setDaemon(true);
@@ -76,7 +67,7 @@ public class RedisMessenger implements Messenger {
             try {
                 publisherExecutor.submit(() -> safePublish(channelId, payload));
             } catch (RejectedExecutionException rex) {
-                logger.log(Level.WARNING, "Publisher executor rejected task, falling back to sync publish", rex);
+                getLogger().error(rex, "Publisher executor rejected task, falling back to sync publish");
                 safePublish(channelId, payload);
             }
         } else {
@@ -91,7 +82,7 @@ public class RedisMessenger implements Messenger {
             Map<String, String> entry = Map.of("payload", payload);
             j.xadd(streamKey, StreamEntryID.NEW_ENTRY, entry);
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Redis publish failed for channel=" + channelId + " : " + e.getMessage(), e);
+            getLogger().error(e, "Redis publish failed for channel=" + channelId + " : " + e.getMessage());
         }
     }
 
@@ -104,7 +95,6 @@ public class RedisMessenger implements Messenger {
         String sid = UUID.randomUUID().toString();
         SubscriptionHandle handle = new SubscriptionHandle(sid, channelId, mode, consumerGroupName);
         subscriptions.put(sid, handle);
-
         if (mode == SubscribeMode.PUBSUB) {
             startPubSub(handle, consumer);
         } else {
@@ -114,8 +104,6 @@ public class RedisMessenger implements Messenger {
     }
 
     private void startPubSub(SubscriptionHandle handle, Consumer<ChannelMessageEvent> consumer) {
-        
-        
         handle.future = subscriberExecutor.submit(() -> {
             if (handle.stopped.get()) return;
             try (Jedis j = pool.getResource()) {
@@ -130,14 +118,13 @@ public class RedisMessenger implements Messenger {
                     j.subscribe(sub, handle.channelId);
                 } catch (Exception ex) {
                     if (!handle.stopped.get()) {
-                        logger.log(Level.WARNING, "PubSub subscribe on channel " + handle.channelId + " ended unexpectedly: " + ex.getMessage(), ex);
-                        
+                        getLogger().error(ex, "PubSub subscribe on channel " + handle.channelId + " ended unexpectedly: " + ex.getMessage());
                         reconnectScheduler.schedule(() -> startPubSub(handle, consumer), config.getReconnectBackoff().toMillis(), TimeUnit.MILLISECONDS);
                     }
                 }
             } catch (Exception e) {
                 if (!handle.stopped.get()) {
-                    logger.log(Level.SEVERE, "Error in pubsub loop for channel " + handle.channelId + ": " + e.getMessage(), e);
+                    getLogger().error(e, "Error in pubsub loop for channel " + handle.channelId + ": " + e.getMessage());
                     reconnectScheduler.schedule(() -> startPubSub(handle, consumer), config.getReconnectBackoff().toMillis(), TimeUnit.MILLISECONDS);
                 }
             }
@@ -145,9 +132,6 @@ public class RedisMessenger implements Messenger {
     }
 
     private void startStreamConsumer(SubscriptionHandle handle, Consumer<ChannelMessageEvent> consumer) {
-        
-        
-        
         handle.future = subscriberExecutor.submit(() -> {
             final String channelStream = config.getStreamPrefix() + handle.channelId;
             final String group = (handle.consumerGroupName != null && !handle.consumerGroupName.isEmpty())
@@ -155,45 +139,37 @@ public class RedisMessenger implements Messenger {
                     : config.getConsumerGroupPrefix() + handle.channelId;
             final String consumerName = "consumer-" + UUID.randomUUID();
 
-            
             try (Jedis j = pool.getResource()) {
                 try {
                     j.xgroupCreate(channelStream, group, StreamEntryID.LAST_ENTRY, true);
                 } catch (Exception ex) {
-                    logger.log(Level.FINE, "Consumer group may already exist for " + channelStream + ":" + group + " -> " + ex.getMessage());
+                    getLogger().error(ex, "Consumer group may already exist for " + channelStream + ":" + group + " -> " + ex.getMessage());
                 }
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Could not ensure consumer group exists for " + channelStream + " : " + e.getMessage(), e);
+                getLogger().error(e, "Could not ensure consumer group exists for " + channelStream + " : " + e.getMessage());
             }
 
-            
             while (!handle.stopped.get()) {
                 try (Jedis j = pool.getResource()) {
                     XReadGroupParams params = new XReadGroupParams();
                     params.count(config.getStreamReadCount());
                     params.block((int) config.getStreamBlockMillis());
                     List<Map.Entry<String, List<StreamEntry>>> responses = j.xreadGroup(
-                            group,
-                            consumerName,
-                            params,
+                            group, consumerName, params,
                             Collections.singletonMap(channelStream, StreamEntryID.UNRECEIVED_ENTRY)
                     );
-
                     if (responses == null || responses.isEmpty()) continue;
 
                     for (Map.Entry<String, List<StreamEntry>> streamResponse : responses) {
-                        String streamKey = streamResponse.getKey();
                         List<StreamEntry> entries = streamResponse.getValue();
                         for (StreamEntry entry : entries) {
                             String id = entry.getID().toString();
                             Map<String, String> fields = entry.getFields();
                             String payload = fields.get("payload");
                             if (payload == null) {
-                                logger.log(Level.FINE, "Stream entry without field 'payload' in " + streamKey + " id=" + id);
                                 if (config.isAckAfterProcessing()) safeXAck(handle, j, channelStream, group, id);
                                 continue;
                             }
-
                             final String entryId = id;
                             processingExecutor.submit(() -> {
                                 boolean processedOk = false;
@@ -201,13 +177,13 @@ public class RedisMessenger implements Messenger {
                                     dispatchParsedPayload(handle.channelId, payload, consumer, handle);
                                     processedOk = true;
                                 } catch (Exception ex) {
-                                    logger.log(Level.SEVERE, "Error processing stream entry " + entryId + " for " + channelStream + ": " + ex.getMessage(), ex);
+                                    getLogger().error(ex, "Error processing stream entry " + entryId + " for " + channelStream + ": " + ex.getMessage());
                                 } finally {
                                     if (processedOk && config.isAckAfterProcessing()) {
                                         try (Jedis j2 = pool.getResource()) {
                                             safeXAck(handle, j2, channelStream, group, entryId);
                                         } catch (Exception ackEx) {
-                                            logger.log(Level.SEVERE, "Failed XACK entry " + entryId + " : " + ackEx.getMessage(), ackEx);
+                                            getLogger().error(ackEx, "Failed XACK entry " + entryId + " : " + ackEx.getMessage());
                                         }
                                     }
                                 }
@@ -216,9 +192,9 @@ public class RedisMessenger implements Messenger {
                     }
                 } catch (Exception e) {
                     if (!handle.stopped.get()) {
-                        logger.log(Level.SEVERE, "Error in stream consumer loop for channel " + handle.channelId + " : " + e.getMessage(), e);
+                        getLogger().error(e, "Error in stream consumer loop for channel " + handle.channelId + " : " + e.getMessage());
                         reconnectScheduler.schedule(() -> startStreamConsumer(handle, consumer), config.getReconnectBackoff().toMillis(), TimeUnit.MILLISECONDS);
-                        return; 
+                        return;
                     }
                 }
             }
@@ -230,46 +206,51 @@ public class RedisMessenger implements Messenger {
         try {
             j.xack(streamKey, group, new StreamEntryID(entryId));
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Failed XACK " + entryId + " for " + streamKey + " group=" + group + " : " + e.getMessage(), e);
+            getLogger().error(e, "Failed XACK " + entryId + " for " + streamKey + " group=" + group + " : " + e.getMessage());
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private void dispatchParsedPayload(String channel, String message, Consumer<ChannelMessageEvent> consumer, SubscriptionHandle handle) {
         Runnable job = () -> {
             try {
-                Object parsed = objectMapper.fromJsonCompatible(message);
-                if (parsed instanceof Map<?, ?> map) {
-                    String destiny = (String) map.get("destiny");
-                    String type = (String) map.get("type");
-                    if ("object".equals(type)) {
-                        String className = (String) map.get("class");
-                        Object data = map.get("data");
-                        Object obj = null;
-                        if (data instanceof Map<?, ?> mdata) {
-                            try {
-                                Class<?> clazz = Class.forName(className);
-                                obj = objectMapper.fromMap((Class) clazz, (Map<String, Object>) mdata, null);
-                            } catch (Exception e) {
-                                logger.log(Level.SEVERE, "Failed to reconstruct object " + className + " for channel " + channel + ": " + e.getMessage(), e);
-                            }
+                Document map = Document.parse(message);
+
+                String destiny = map.getString("destiny");
+                String type = map.getString("type");
+
+                if ("object".equals(type)) {
+                    String className = map.getString("class");
+                    Object obj = null;
+                    Object data = map.get("data");
+
+                    if (data instanceof Document docData) {
+                        try {
+                            Class<?> clazz = Class.forName(className);
+                            obj = objectMapper.fromDocument(clazz, docData);
+                        } catch (Exception e) {
+                            getLogger().error(e, "Failed to parse object from document " + className + " : " + e.getMessage());
                         }
-                        List<String> msgsList = (List<String>) map.get("messages");
-                        String[] arr = msgsList == null ? new String[0] : msgsList.toArray(new String[0]);
-                        ChannelMessageWithObjectEvent ev = new ChannelMessageWithObjectEvent(channel, destiny, obj, arr);
-                        safeInvokeConsumer(ev, consumer);
-                    } else {
-                        List<String> msgsList = (List<String>) map.get("messages");
-                        String[] arr = msgsList == null ? new String[0] : msgsList.toArray(new String[0]);
-                        ChannelMessageWithoutObjectEvent ev = new ChannelMessageWithoutObjectEvent(channel, (String) map.get("destiny"), arr);
-                        safeInvokeConsumer(ev, consumer);
                     }
+
+                    List<String> msgsList = map.getList("messages", String.class);
+                    String[] arr = msgsList == null ? new String[0] : msgsList.toArray(new String[0]);
+
+                    ChannelMessageWithObjectEvent ev = new ChannelMessageWithObjectEvent(channel, destiny, obj, arr);
+                    safeInvokeConsumer(ev, consumer);
                 } else {
-                    ChannelMessageWithoutObjectEvent ev = new ChannelMessageWithoutObjectEvent(channel, null, null);
+                    List<String> msgsList = map.getList("messages", String.class);
+                    String[] arr = msgsList == null ? new String[0] : msgsList.toArray(new String[0]);
+
+                    ChannelMessageWithoutObjectEvent ev = new ChannelMessageWithoutObjectEvent(channel, destiny, arr);
                     safeInvokeConsumer(ev, consumer);
                 }
             } catch (Throwable t) {
-                logger.log(Level.SEVERE, "Error while parsing/dispatching payload for channel " + channel + " : " + t.getMessage(), t);
+                if (!message.trim().startsWith("{")) {
+                    ChannelMessageWithoutObjectEvent ev = new ChannelMessageWithoutObjectEvent(channel, null, new String[]{message});
+                    safeInvokeConsumer(ev, consumer);
+                } else {
+                    getLogger().error(t, "Error while parsing/dispatching payload for channel " + channel + " : " + t.getMessage());
+                }
             }
         };
 
@@ -277,7 +258,7 @@ public class RedisMessenger implements Messenger {
             try {
                 processingExecutor.submit(job);
             } catch (RejectedExecutionException rex) {
-                logger.log(Level.WARNING, "Processing executor rejected task; running inline to avoid message loss", rex);
+                getLogger().error(rex, "Processing executor rejected task; running inline to avoid message loss");
                 job.run();
             }
         } else {
@@ -289,7 +270,7 @@ public class RedisMessenger implements Messenger {
         try {
             consumer.accept(ev);
         } catch (Throwable t) {
-            logger.log(Level.SEVERE, "Listener threw exception for channel " + ev.getChannelId() + " : " + t.getMessage(), t);
+            getLogger().error(t, "Listener threw exception for channel " + ev.getChannelId() + " : " + t.getMessage());
         }
     }
 
@@ -299,14 +280,9 @@ public class RedisMessenger implements Messenger {
         if (h == null) return;
         h.stopped.set(true);
         if (h.pubSub != null) {
-            try { h.pubSub.unsubscribe(); } catch (Exception e) { logger.log(Level.WARNING, "Error unsubscribing pubsub for " + h.channelId + " : " + e.getMessage(), e); }
+            try { h.pubSub.unsubscribe(); } catch (Exception e) { getLogger().error(e, "Error unsubscribing pubsub for " + h.channelId + " : " + e.getMessage()); }
         }
         if (h.future != null) h.future.cancel(true);
-    }
-
-    @Override
-    public Logger getLogger() {
-        return logger;
     }
 
     @Override
@@ -328,7 +304,7 @@ public class RedisMessenger implements Messenger {
             Thread.currentThread().interrupt();
             ex.shutdownNow();
         } catch (Throwable t) {
-            logger.log(Level.WARNING, "Error shutting down " + name + ": " + t.getMessage(), t);
+            getLogger().error(t, "Error shutting down " + name + ": " + t.getMessage());
         }
     }
 

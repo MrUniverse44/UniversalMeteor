@@ -1,5 +1,6 @@
 package me.blueslime.meteor.storage.messenger.channels.types;
 
+import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.storage.interfaces.StorageObject;
 import me.blueslime.meteor.storage.mapper.ObjectMapper;
 import me.blueslime.meteor.storage.messenger.channels.BaseChannel;
@@ -10,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
 
 public abstract class ObjectChannel<V extends StorageObject> extends BaseChannel {
 
@@ -22,12 +22,12 @@ public abstract class ObjectChannel<V extends StorageObject> extends BaseChannel
         super(messenger, cache);
     }
 
-    public ObjectChannel(Messenger messenger, ObjectMapper mapper, ChannelCache cache, Logger logger) {
+    public ObjectChannel(Messenger messenger, ObjectMapper mapper, ChannelCache cache, PlatformLogger logger) {
         super(messenger, mapper, cache, logger);
     }
 
     public void send(V value, String destiny, String... messages) {
-        Map<String, Object> map = objectMapper.toMap(value);
+        Map<String, Object> map = objectMapper.toDocument(value);
         Map<String, Object> payload = new HashMap<>();
         payload.put("destiny", destiny == null ? "" : destiny);
         payload.put("type", "object");
@@ -40,7 +40,7 @@ public abstract class ObjectChannel<V extends StorageObject> extends BaseChannel
             payload.put("messages", new ArrayList<>());
         }
 
-        String json = objectMapper.toJsonCompatible(payload);
+        String json = objectMapper.toJson(payload);
         publishRaw(json);
     }
 }

@@ -1,11 +1,11 @@
 package me.blueslime.meteor.storage.messenger;
 
+import me.blueslime.meteor.platforms.api.service.PlatformService;
 import me.blueslime.meteor.storage.mapper.ObjectMapper;
 import me.blueslime.meteor.storage.messenger.channels.parameter.ChannelMessageEvent;
 import java.util.function.Consumer;
-import java.util.logging.Logger;
 
-public interface Messenger {
+public interface Messenger extends PlatformService {
     /**
      * Publish a message payload for a given channel id.
      * Payload SHOULD be a String (JSON) produced by ObjectMapper.
@@ -29,9 +29,7 @@ public interface Messenger {
      */
     void shutdown();
 
-    Logger getLogger();
-
     default ObjectMapper mapper() {
-        return new ObjectMapper(getLogger());
+        return new ObjectMapper();
     };
 }
