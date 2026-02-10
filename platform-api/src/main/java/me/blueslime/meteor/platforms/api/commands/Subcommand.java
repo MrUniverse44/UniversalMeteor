@@ -1,13 +1,15 @@
 package me.blueslime.meteor.platforms.api.commands;
 
 import me.blueslime.meteor.platforms.api.entity.Sender;
+import me.blueslime.meteor.platforms.api.service.PlatformService;
+
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public abstract class Subcommand {
+public abstract class Subcommand implements PlatformService {
 
     private final List<Subcommand> subcommands = new ArrayList<>();
     private final List<Argument<?>> arguments = new ArrayList<>();
@@ -34,6 +36,11 @@ public abstract class Subcommand {
                     if (param.isAnnotationPresent(Optional.class)) argument.type(ArgumentType.OPTIONAL);
                     if (param.isAnnotationPresent(Suggestion.class)) {
                         argument.withSuggestionKey(param.getAnnotation(Suggestion.class).value());
+                    }
+                    if (param.isAnnotationPresent(Suggestions.class)) {
+                        argument.withSuggestions(
+                            Arrays.asList(param.getAnnotation(Suggestions.class).suggests())
+                        );
                     }
 
                     arguments.add(argument);
@@ -63,7 +70,6 @@ public abstract class Subcommand {
                     current.getId().equals(override.getId()) ? override : current
             );
 
-            // Si no existía (es un argumento extra manual), lo agregamos
             boolean exists = arguments.stream().anyMatch(a -> a.getId().equals(override.getId()));
             if (!exists) {
                 arguments.add(override);
@@ -82,12 +88,16 @@ public abstract class Subcommand {
                 if (param.isAnnotationPresent(CommandSender.class)) {
                     invokeArgs.add(sender);
                 } else {
-                    invokeArgs.add(args[argIndex++]);
+                    if (args.length > argIndex) {
+                        invokeArgs.add(args[argIndex++]);
+                    } else {
+                        invokeArgs.add(null);
+                    }
                 }
             }
             executorMethod.invoke(this, invokeArgs.toArray());
         } catch (Exception e) {
-            e.printStackTrace();
+            getLogger().error(e, "Can't execute subcommand internal handle");
         }
     }
 

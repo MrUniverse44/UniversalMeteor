@@ -12,9 +12,9 @@ import java.util.List;
 public abstract class Command implements PlatformService {
 
     private final List<Subcommand> rootSubcommands = new ArrayList<>();
-    private CommandExecutor baseExecutor; // Ejecutor cuando no hay argumentos
+    private CommandExecutor baseExecutor;
 
-    protected abstract void register();
+    public abstract void register();
 
     protected void registerSubcommand(Subcommand... builders) {
         this.rootSubcommands.addAll(Arrays.asList(builders));

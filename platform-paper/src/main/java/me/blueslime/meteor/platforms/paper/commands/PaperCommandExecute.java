@@ -20,6 +20,7 @@ public class PaperCommandExecute extends org.bukkit.command.Command {
         super(rootCommand.getName());
         this.rootCommand = rootCommand;
         this.registry = registry;
+        this.rootCommand.register();
         this.setAliases(new ArrayList<>(rootCommand.getAliases()));
         this.setDescription(rootCommand.getDescription());
     }
