@@ -112,4 +112,8 @@ public abstract class Subcommand implements PlatformService {
     public String getUsage() {
         return "";
     }
+
+    public String getWrongUsage() {
+        return "";
+    }
 }

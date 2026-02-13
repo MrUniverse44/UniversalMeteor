@@ -8,7 +8,7 @@
     <parent>
         <groupId>me.blueslime.meteor</groupId>
         <artifactId>UniversalMeteor</artifactId>
-        <version>3.0.6</version>
+        <version>3.0.7</version>
     </parent>
 
     <artifactId>platform-spiper</artifactId>

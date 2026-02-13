@@ -3,9 +3,11 @@ package me.blueslime.meteor.platforms.bungeecord.adapter;
 import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.Platforms;
 import me.blueslime.meteor.platforms.api.adapter.PlatformAdapterBuilder;
+import me.blueslime.meteor.platforms.api.commands.PlatformCommands;
 import me.blueslime.meteor.platforms.api.data.PluginData;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
+import me.blueslime.meteor.platforms.bungeecord.commands.BungeePlatformCommandProvider;
 import me.blueslime.meteor.platforms.bungeecord.data.BungeePluginData;
 import me.blueslime.meteor.platforms.bungeecord.events.BungeePlatformEvents;
 import me.blueslime.meteor.platforms.bungeecord.tasks.BungeePlatformTasks;
@@ -29,6 +31,7 @@ public class BungeePlatformAdapterBuilder<P extends PlatformPlugin<Listener>> ex
         info.setPluginData(data);
         info.setPlatform(Platforms.BUNGEECORD);
         info.setPlatformEvents(new BungeePlatformEvents(pluginInstance));
+        info.setCommands(new PlatformCommands(new BungeePlatformCommandProvider(pluginInstance)));
         info.setTasks(new BungeePlatformTasks(pluginInstance));
         info.setLogger(
             new PlatformLogger(

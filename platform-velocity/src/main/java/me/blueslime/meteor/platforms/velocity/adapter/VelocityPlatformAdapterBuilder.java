@@ -7,9 +7,11 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.Platforms;
 import me.blueslime.meteor.platforms.api.adapter.PlatformAdapterBuilder;
+import me.blueslime.meteor.platforms.api.commands.PlatformCommands;
 import me.blueslime.meteor.platforms.api.data.PluginData;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
+import me.blueslime.meteor.platforms.velocity.commands.VelocityPlatformCommandProvider;
 import me.blueslime.meteor.platforms.velocity.data.VelocityPluginData;
 import me.blueslime.meteor.platforms.velocity.events.VelocityPlatformEvents;
 import me.blueslime.meteor.platforms.velocity.tasks.VelocityPlatformTasks;
@@ -46,6 +48,7 @@ public class VelocityPlatformAdapterBuilder<P extends PlatformPlugin<Object>> ex
 
         info.setPlatform(paper);
         info.setPlatformEvents(new VelocityPlatformEvents(proxyInstance));
+        info.setCommands(new PlatformCommands(new VelocityPlatformCommandProvider(proxyInstance)));
         info.setTasks(new VelocityPlatformTasks(proxyInstance));
         info.setLogger(
             new PlatformLogger(
