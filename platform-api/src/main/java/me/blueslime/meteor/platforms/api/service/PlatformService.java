@@ -25,18 +25,12 @@ public interface PlatformService extends Service, Implementer {
         return fetch(Platforms.class);
     }
 
-    default PlatformPlugin<?> getPlugin() {
+    default PlatformPlugin getPlugin() {
         return fetch(PlatformPlugin.class);
     }
 
-    @SuppressWarnings("unchecked")
-    default <L> PlatformPlugin<L> getPlugin(Class<L> listenerClass) {
-        return (PlatformPlugin<L>) fetch(PlatformPlugin.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    default <L> PlatformEvents<L> getEvents(Class<L> listenerClass) {
-        return (PlatformEvents<L>) fetch(PlatformEvents.class);
+    default PlatformEvents getEvents() {
+        return fetch(PlatformEvents.class);
     }
 
     default PlatformCommands getCommands() {

@@ -9,7 +9,7 @@ import net.md_5.bungee.api.plugin.PluginManager;
 import java.util.HashSet;
 import java.util.Set;
 
-public class BungeePlatformEvents implements PlatformEvents<Listener> {
+public class BungeePlatformEvents implements PlatformEvents {
 
     private final Set<Listener> listeners = new HashSet<>();
     private final Plugin plugin;
@@ -24,16 +24,20 @@ public class BungeePlatformEvents implements PlatformEvents<Listener> {
      * @param listeners to register
      */
     @Override
-    public void registerListener(Listener... listeners) {
+    public void registerListener(Object... listeners) {
         if (listeners == null || listeners.length == 0) {
             return;
         }
 
         PluginManager pm = plugin.getProxy().getPluginManager();
 
-        for (Listener listener : listeners) {
-            pm.registerListener(plugin, listener);
-            this.listeners.add(listener);
+        for (Object listenerToParse : listeners) {
+            if (listenerToParse instanceof Listener listener) {
+                pm.registerListener(plugin, listener);
+                this.listeners.add(listener);
+            } else {
+                getLogger().error("Class: " + listenerToParse.getClass().getSimpleName() + " does not implement bukkit Listener interface");
+            }
         }
     }
 
@@ -54,14 +58,18 @@ public class BungeePlatformEvents implements PlatformEvents<Listener> {
      * @param listeners to unregister
      */
     @Override
-    public void unregisterListener(Listener... listeners) {
+    public void unregisterListener(Object... listeners) {
         if (listeners == null || listeners.length == 0) {
             return;
         }
         PluginManager pm = plugin.getProxy().getPluginManager();
-        for (Listener listener : listeners) {
-            pm.unregisterListener(listener);
-            this.listeners.remove(listener);
+        for (Object listenerToParse : listeners) {
+            if (listenerToParse instanceof Listener listener) {
+                pm.unregisterListener(listener);
+                this.listeners.remove(listener);
+            } else {
+                getLogger().error("Class: " + listenerToParse.getClass().getSimpleName() + " does not implement bukkit Listener interface");
+            }
         }
     }
 

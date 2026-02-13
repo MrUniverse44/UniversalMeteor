@@ -9,7 +9,7 @@ import java.io.File;
 
 public abstract class UniversalPlatformModule extends PlatformModule<Object> {
 
-    public UniversalPlatformModule(File file, PlatformPlugin<Object> platform, PlatformLogger moduleLogger) {
+    public UniversalPlatformModule(File file, PlatformPlugin platform, PlatformLogger moduleLogger) {
         super(file, platform, moduleLogger);
     }
 

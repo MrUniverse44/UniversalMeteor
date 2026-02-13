@@ -9,7 +9,7 @@ import java.io.File;
 
 public abstract class BungeePlatformModule extends PlatformModule<Listener> {
 
-    public BungeePlatformModule(File file, PlatformPlugin<Listener> platform, PlatformLogger moduleLogger) {
+    public BungeePlatformModule(File file, PlatformPlugin platform, PlatformLogger moduleLogger) {
         super(file, platform, moduleLogger);
     }
 

@@ -10,7 +10,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.util.HashSet;
 import java.util.Set;
 
-public class SpigotPlatformEvents implements PlatformEvents<Listener> {
+public class SpigotPlatformEvents implements PlatformEvents {
 
     private final Set<Listener> listeners = new HashSet<>();
     private final JavaPlugin plugin;
@@ -25,16 +25,20 @@ public class SpigotPlatformEvents implements PlatformEvents<Listener> {
      * @param listeners to register
      */
     @Override
-    public void registerListener(Listener... listeners) {
+    public void registerListener(Object... listeners) {
         if (listeners == null || listeners.length == 0) {
             return;
         }
 
         PluginManager pm = plugin.getServer().getPluginManager();
 
-        for (Listener listener : listeners) {
-            pm.registerEvents(listener, plugin);
-            this.listeners.add(listener);
+        for (Object listenerToParse : listeners) {
+            if (listenerToParse instanceof Listener listener) {
+                pm.registerEvents(listener, plugin);
+                this.listeners.add(listener);
+            } else {
+                getLogger().error("Listener " + listenerToParse.getClass().getSimpleName() + " is not a valid listener");
+            }
         }
     }
 
@@ -56,13 +60,17 @@ public class SpigotPlatformEvents implements PlatformEvents<Listener> {
      */
     @SuppressWarnings("RedundantLengthCheck")
     @Override
-    public void unregisterListener(Listener... listeners) {
+    public void unregisterListener(Object... listeners) {
         if (listeners == null || listeners.length == 0) {
             return;
         }
-        for (Listener listener : listeners) {
-            HandlerList.unregisterAll(listener);
-            this.listeners.remove(listener);
+        for (Object listenerToParse : listeners) {
+            if (listenerToParse instanceof Listener listener) {
+                HandlerList.unregisterAll(listener);
+                this.listeners.remove(listener);
+            } else {
+                getLogger().error("Listener " + listenerToParse.getClass().getSimpleName() + " is not a valid listener");
+            }
         }
     }
 

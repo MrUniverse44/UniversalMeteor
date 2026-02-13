@@ -7,9 +7,9 @@ import me.blueslime.meteor.platforms.api.events.PlatformEvents;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.tasks.PlatformTasks;
 
-public class PluginInfo<L> {
+public class PluginInfo {
 
-    private PlatformEvents<L> platformEvents = null;
+    private PlatformEvents platformEvents = null;
     private PlatformCommands commands = null;
     private PlatformLogger logger = null;
     private PluginData pluginData = null;
@@ -20,7 +20,7 @@ public class PluginInfo<L> {
         this.logger = logger;
     }
 
-    public void setPlatformEvents(PlatformEvents<L> platformEvents) {
+    public void setPlatformEvents(PlatformEvents platformEvents) {
         this.platformEvents = platformEvents;
     }
 
@@ -40,7 +40,7 @@ public class PluginInfo<L> {
         this.tasks = tasks;
     }
 
-    public PlatformEvents<L> getPlatformEvents() {
+    public PlatformEvents getPlatformEvents() {
         return platformEvents;
     }
 

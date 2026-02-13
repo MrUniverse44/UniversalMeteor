@@ -17,31 +17,31 @@ import me.blueslime.meteor.platforms.velocity.events.VelocityPlatformEvents;
 import me.blueslime.meteor.platforms.velocity.tasks.VelocityPlatformTasks;
 import net.kyori.adventure.text.Component;
 
-public class VelocityPlatformAdapterBuilder<P extends PlatformPlugin<Object>> extends PlatformAdapterBuilder<P, ProxyServer, Object> {
+public class VelocityPlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, ProxyServer> {
 
     public VelocityPlatformAdapterBuilder(Class<P> mainClass) {
         super(mainClass);
     }
 
-    public PlatformAdapterBuilder<P, ProxyServer, Object> registerPluginData(PluginContainer plugin) {
+    public PlatformAdapterBuilder<P, ProxyServer> registerPluginData(PluginContainer plugin) {
         final PluginData data = new VelocityPluginData(plugin.getDescription());
         info.setPluginData(data);
         return this;
     }
 
-    public PlatformAdapterBuilder<P, ProxyServer, Object> registerPluginData(PluginDescription description) {
+    public PlatformAdapterBuilder<P, ProxyServer> registerPluginData(PluginDescription description) {
         final PluginData data = new VelocityPluginData(description);
         info.setPluginData(data);
         return this;
     }
 
-    public PlatformAdapterBuilder<P, ProxyServer, Object> registerAdapter(Object plugin) {
+    public PlatformAdapterBuilder<P, ProxyServer> registerAdapter(Object plugin) {
         Implements.setEntry(Object.class, "adapter", plugin, true);
         return this;
     }
 
     @Override
-    public PlatformAdapterBuilder<P, ProxyServer, Object> registerMainClass(ProxyServer proxyInstance) {
+    public PlatformAdapterBuilder<P, ProxyServer> registerMainClass(ProxyServer proxyInstance) {
         final Platforms paper = Platforms.detectPaper();
 
         Implements.setEntry(ProxyServer.class, proxyInstance, true);

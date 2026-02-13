@@ -7,10 +7,10 @@ import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
 
 import java.io.File;
 
-public interface VelocityPlatformAdapter<P extends PlatformPlugin<Object>> extends PlatformAdapter<P, ProxyServer, Object> {
+public interface VelocityPlatformAdapter<P extends PlatformPlugin> extends PlatformAdapter<P, ProxyServer> {
 
     @Override
-    default PlatformAdapterBuilder<P, ProxyServer, Object> createAdapter(Class<P> clazz, File directory) {
+    default PlatformAdapterBuilder<P, ProxyServer> createAdapter(Class<P> clazz, File directory) {
         return new VelocityPlatformAdapterBuilder<>(clazz)
             .register(File.class, "directory", directory, true);
     }

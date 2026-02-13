@@ -9,7 +9,7 @@ import java.io.File;
 
 public abstract class PaperPlatformModule extends PlatformModule<Listener> {
 
-    public PaperPlatformModule(File file, PlatformPlugin<Listener> platform, PlatformLogger moduleLogger) {
+    public PaperPlatformModule(File file, PlatformPlugin platform, PlatformLogger moduleLogger) {
         super(file, platform, moduleLogger);
     }
 

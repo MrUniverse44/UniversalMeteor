@@ -8,10 +8,10 @@ import net.md_5.bungee.api.plugin.Plugin;
 
 import java.io.File;
 
-public interface BungeePlatformAdapter<P extends PlatformPlugin<Listener>> extends PlatformAdapter<P, Plugin, Listener> {
+public interface BungeePlatformAdapter<P extends PlatformPlugin> extends PlatformAdapter<P, Plugin> {
 
     @Override
-    default PlatformAdapterBuilder<P, Plugin, Listener> createAdapter(Class<P> clazz, File directory) {
+    default PlatformAdapterBuilder<P, Plugin> createAdapter(Class<P> clazz, File directory) {
         return new BungeePlatformAdapterBuilder<>(clazz)
             .register(File.class, "directory", directory, true);
     }

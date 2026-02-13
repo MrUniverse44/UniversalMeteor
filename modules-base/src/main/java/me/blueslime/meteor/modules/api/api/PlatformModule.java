@@ -17,11 +17,11 @@ import java.io.File;
 public abstract class PlatformModule<ListenerType> {
 
     protected final Set<ListenerType> listeners = new HashSet<>();
-    protected final PlatformPlugin<ListenerType> platform;
+    protected final PlatformPlugin platform;
     protected final PlatformLogger logger;
     private final File directory;
 
-    public PlatformModule(File file, PlatformPlugin<ListenerType> platform, PlatformLogger moduleLogger) {
+    public PlatformModule(File file, PlatformPlugin platform, PlatformLogger moduleLogger) {
         this.directory = file;
         this.platform = platform;
         this.logger = moduleLogger;
@@ -60,7 +60,7 @@ public abstract class PlatformModule<ListenerType> {
      * Gets the platform abstraction
      * @return the platform
      */
-    public PlatformPlugin<ListenerType> getPlatform() {
+    public PlatformPlugin getPlatform() {
         return platform;
     }
 

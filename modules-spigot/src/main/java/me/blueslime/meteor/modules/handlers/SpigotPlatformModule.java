@@ -9,7 +9,7 @@ import java.io.File;
 
 public abstract class SpigotPlatformModule extends PlatformModule<Listener> {
 
-    public SpigotPlatformModule(File file, PlatformPlugin<Listener> platform, PlatformLogger moduleLogger) {
+    public SpigotPlatformModule(File file, PlatformPlugin platform, PlatformLogger moduleLogger) {
         super(file, platform, moduleLogger);
     }
 

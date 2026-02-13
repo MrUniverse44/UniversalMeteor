@@ -13,17 +13,16 @@ import me.blueslime.meteor.platforms.bungeecord.events.BungeePlatformEvents;
 import me.blueslime.meteor.platforms.bungeecord.tasks.BungeePlatformTasks;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.chat.TextComponent;
-import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 
-public class BungeePlatformAdapterBuilder<P extends PlatformPlugin<Listener>> extends PlatformAdapterBuilder<P, Plugin, Listener> {
+public class BungeePlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, Plugin> {
 
     public BungeePlatformAdapterBuilder(Class<P> mainClass) {
         super(mainClass);
     }
 
     @Override
-    public PlatformAdapterBuilder<P, Plugin, Listener> registerMainClass(Plugin pluginInstance) {
+    public PlatformAdapterBuilder<P, Plugin> registerMainClass(Plugin pluginInstance) {
         final PluginData data = new BungeePluginData(pluginInstance);
 
         Implements.setEntry(Plugin.class, pluginInstance, true);

@@ -13,17 +13,16 @@ import me.blueslime.meteor.platforms.spigot.data.SpigotPluginData;
 import me.blueslime.meteor.platforms.spigot.events.SpigotPlatformEvents;
 import me.blueslime.meteor.platforms.spigot.tasks.SpigotPlatformTasks;
 import org.bukkit.command.ConsoleCommandSender;
-import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public class SpigotPlatformAdapterBuilder<P extends PlatformPlugin<Listener>> extends PlatformAdapterBuilder<P, JavaPlugin, Listener> {
+public class SpigotPlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, JavaPlugin> {
 
     public SpigotPlatformAdapterBuilder(Class<P> mainClass) {
         super(mainClass);
     }
 
     @Override
-    public PlatformAdapterBuilder<P, JavaPlugin, Listener> registerMainClass(JavaPlugin pluginInstance) {
+    public PlatformAdapterBuilder<P, JavaPlugin> registerMainClass(JavaPlugin pluginInstance) {
         final PluginData data = new SpigotPluginData(pluginInstance);
 
         Implements.setEntry(JavaPlugin.class, pluginInstance, true);

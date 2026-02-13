@@ -7,16 +7,16 @@ import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 
 import java.lang.reflect.Constructor;
 
-public abstract class PlatformAdapterBuilder<P extends PlatformPlugin<L>, I, L> {
+public abstract class PlatformAdapterBuilder<P extends PlatformPlugin, I> {
 
-    protected final PluginInfo<L> info = new PluginInfo<>();
+    protected final PluginInfo info = new PluginInfo();
     protected final Class<P> clazz;
 
     public PlatformAdapterBuilder(Class<P> mainClass) {
         this.clazz = mainClass;
     }
 
-    public abstract PlatformAdapterBuilder<P, I, L> registerMainClass(I pluginInstance);
+    public abstract PlatformAdapterBuilder<P, I> registerMainClass(I pluginInstance);
 
     /**
      * Register a class to the Implements system, so this class will be accessible for all your project.<br>
@@ -26,7 +26,7 @@ public abstract class PlatformAdapterBuilder<P extends PlatformPlugin<L>, I, L> 
      * @return this adapter builder instance
      * @param <T> type of value
      */
-    public <T> PlatformAdapterBuilder<P, I, L> register(Class<T> clazz, T value) {
+    public <T> PlatformAdapterBuilder<P, I> register(Class<T> clazz, T value) {
         return register(clazz, value, true);
     }
 
@@ -38,7 +38,7 @@ public abstract class PlatformAdapterBuilder<P extends PlatformPlugin<L>, I, L> 
      * @return this adapter builder instance
      * @param <T> type of value
      */
-    public <T> PlatformAdapterBuilder<P, I, L> register(Class<T> clazz, T value, boolean persist) {
+    public <T> PlatformAdapterBuilder<P, I> register(Class<T> clazz, T value, boolean persist) {
         Implements.setEntry(clazz, value, persist);
         return this;
     }
@@ -52,7 +52,7 @@ public abstract class PlatformAdapterBuilder<P extends PlatformPlugin<L>, I, L> 
      * @return this adapter builder instance
      * @param <T> type of value
      */
-    public <T> PlatformAdapterBuilder<P, I, L> register(Class<T> clazz, String identifier, T value) {
+    public <T> PlatformAdapterBuilder<P, I> register(Class<T> clazz, String identifier, T value) {
         return register(clazz, identifier, value, true);
     }
 
@@ -65,7 +65,7 @@ public abstract class PlatformAdapterBuilder<P extends PlatformPlugin<L>, I, L> 
      * @return this adapter builder instance
      * @param <T> type of value
      */
-    public <T> PlatformAdapterBuilder<P, I, L> register(Class<T> clazz, String identifier, T value, boolean persist) {
+    public <T> PlatformAdapterBuilder<P, I> register(Class<T> clazz, String identifier, T value, boolean persist) {
         Implements.setEntry(clazz, identifier, value, persist);
         return this;
     }

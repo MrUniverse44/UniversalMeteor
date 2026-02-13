@@ -8,7 +8,7 @@
     <parent>
         <groupId>me.blueslime.meteor</groupId>
         <artifactId>UniversalMeteor</artifactId>
-        <version>3.0.7</version>
+        <version>3.0.8-UMR</version>
     </parent>
 
     <artifactId>platform-forge</artifactId>

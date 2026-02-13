@@ -25,7 +25,7 @@ import java.util.function.Consumer;
  * that create a PlatformPlugin instance and provide platform-specific services<br>
  * (logger, config backend, task scheduler, etc).<br>
  */
-public abstract class PlatformPlugin<L> implements Implementer {
+public abstract class PlatformPlugin implements Implementer {
 
     private final List<Consumer<Platforms>> platformDetectCallbacks = new CopyOnWriteArrayList<>();
     private final List<ServiceContainer> queuedContainers = new ArrayList<>();
@@ -35,13 +35,13 @@ public abstract class PlatformPlugin<L> implements Implementer {
     private final Platforms platform;
 
     protected PlatformConfigurations configurations = PlatformConfigurations.DEFAULT;
-    protected PlatformEvents<L> events;
+    protected PlatformEvents events;
     protected PlatformLogger logger;
     protected PluginData pluginData;
     protected PlatformTasks tasks;
     protected PlatformCommands commands;
 
-    public PlatformPlugin(PluginInfo<L> info) {
+    public PlatformPlugin(PluginInfo info) {
         this.platform = info.getPlatform() == null ? Platforms.UNIVERSAL : info.getPlatform();
         this.pluginData = info.getPluginData();
         this.commands = info.getCommands();
@@ -101,7 +101,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
      * Add a callback that will be invoked during initialize() with the detected platform.<br>
      * Useful for branching registration logic based on a platform.
      */
-    public PlatformPlugin<L> onPlatformDetect(Consumer<Platforms> callback) {
+    public PlatformPlugin onPlatformDetect(Consumer<Platforms> callback) {
         if (callback != null) platformDetectCallbacks.add(callback);
         return this;
     }
@@ -110,7 +110,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
      * Queue module classes grouped by platform(s). They will be registered automatically<br>
      * when {@link #initialize()} is called if the container applies to the detected platform.
      */
-    public PlatformPlugin<L> registerService(ServiceContainer... containers) {
+    public PlatformPlugin registerService(ServiceContainer... containers) {
         if (containers == null) return this;
         queuedContainers.addAll(Arrays.asList(containers));
         return this;
@@ -121,7 +121,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
      */
     @SuppressWarnings("UnusedReturnValue")
     @SafeVarargs
-    public final PlatformPlugin<L> registerService(Class<? extends Service>... servicesToRegister) {
+    public final PlatformPlugin registerService(Class<? extends Service>... servicesToRegister) {
         if (servicesToRegister == null) return this;
         Set<Service> serviceSet = new LinkedHashSet<>();
         for (Class<? extends Service> clazz : servicesToRegister) {
@@ -138,7 +138,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
     /**
      * Register module instances immediately.
      */
-    public PlatformPlugin<L> registerService(Service... serviceInstances) {
+    public PlatformPlugin registerService(Service... serviceInstances) {
         if (serviceInstances == null) return this;
         for (Service m : serviceInstances) {
             if (m == null) continue;
@@ -151,7 +151,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
      * Register module classes immediately by creating instances via reflection.
      */
     @SafeVarargs
-    public final PlatformPlugin<L> registerServiceNow(Class<? extends Service>... moduleClasses) {
+    public final PlatformPlugin registerServiceNow(Class<? extends Service>... moduleClasses) {
         if (moduleClasses == null) return this;
         for (Class<? extends Service> c : moduleClasses) {
             Service s = createInstance(c);
@@ -218,7 +218,7 @@ public abstract class PlatformPlugin<L> implements Implementer {
         return tasks;
     }
 
-    public PlatformEvents<L> getEvents() {
+    public PlatformEvents getEvents() {
         return events;
     }
 

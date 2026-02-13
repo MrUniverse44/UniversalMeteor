@@ -2,11 +2,10 @@ package me.blueslime.meteor.platforms.spigot.plugin;
 
 import me.blueslime.meteor.platforms.api.info.PluginInfo;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
-import org.bukkit.event.Listener;
 
-public abstract class SpigotPlatformPlugin extends PlatformPlugin<Listener> {
+public abstract class SpigotPlatformPlugin extends PlatformPlugin {
 
-    public SpigotPlatformPlugin(PluginInfo<Listener> info) {
+    public SpigotPlatformPlugin(PluginInfo info) {
         super(info);
     }
 

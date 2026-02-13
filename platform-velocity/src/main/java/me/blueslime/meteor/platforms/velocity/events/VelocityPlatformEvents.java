@@ -7,7 +7,7 @@ import me.blueslime.meteor.platforms.api.events.PlatformEvents;
 import java.util.HashSet;
 import java.util.Set;
 
-public class VelocityPlatformEvents implements PlatformEvents<Object> {
+public class VelocityPlatformEvents implements PlatformEvents {
 
     private final Set<Object> listeners = new HashSet<>();
     private final ProxyServer plugin;

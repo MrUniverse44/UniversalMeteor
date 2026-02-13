@@ -2,11 +2,10 @@ package me.blueslime.meteor.platforms.bungeecord.plugin;
 
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
 import me.blueslime.meteor.platforms.api.info.PluginInfo;
-import net.md_5.bungee.api.plugin.Listener;
 
-public abstract class BungeePlatformPlugin extends PlatformPlugin<Listener> {
+public abstract class BungeePlatformPlugin extends PlatformPlugin {
 
-    public BungeePlatformPlugin(PluginInfo<Listener> info) {
+    public BungeePlatformPlugin(PluginInfo info) {
         super(info);
     }
 
