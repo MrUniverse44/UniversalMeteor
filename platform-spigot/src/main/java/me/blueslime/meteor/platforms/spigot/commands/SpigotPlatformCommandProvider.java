@@ -3,8 +3,11 @@ package me.blueslime.meteor.platforms.spigot.commands;
 import com.mojang.brigadier.arguments.*;
 import me.blueslime.meteor.platforms.api.commands.*;
 import me.blueslime.meteor.platforms.api.commands.provider.PlatformCommandProvider;
+import me.blueslime.meteor.platforms.api.entity.Sender;
 import me.blueslime.meteor.platforms.spiper.brigadier.BrigadierInjector;
 import me.blueslime.meteor.platforms.spiper.brigadier.PlayerArgumentType;
+import me.blueslime.meteor.platforms.spiper.brigadier.SenderArgumentType;
+import me.blueslime.meteor.platforms.spiper.brigadier.SpigotSender;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandMap;
@@ -133,6 +136,17 @@ public class SpigotPlatformCommandProvider implements PlatformCommandProvider {
             public Player parse(String input) { return Bukkit.getPlayerExact(input); }
             @Override
             public Object getBrigadierType() { return PlayerArgumentType.playerArg(); }
+        });
+
+        platformCommands.registerType(Sender.class, new ArgumentTypeHandler<>() {
+            @Override
+            public Sender parse(String input) {
+                Player player = Bukkit.getPlayerExact(input);
+                if (player == null) return null;
+                return SpigotSender.build(player);
+            }
+            @Override
+            public Object getBrigadierType() { return SenderArgumentType.senderArg(); }
         });
 
         platformCommands.registerType(OfflinePlayer.class, new ArgumentTypeHandler<>() {
