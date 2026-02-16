@@ -19,7 +19,6 @@ public class VelocityCommandExecute implements SimpleCommand, PlatformService {
     public VelocityCommandExecute(Command rootCommand, PlatformCommands registry) {
         this.rootCommand = rootCommand;
         this.registry = registry;
-        this.rootCommand.register();
     }
 
     @Override
@@ -38,7 +37,7 @@ public class VelocityCommandExecute implements SimpleCommand, PlatformService {
         }
     }
 
-    private void processExecution(Sender sender, Command root, String[] args) throws Exception {
+    private void processExecution(Sender sender, Command root, String[] args) {
         Subcommand current = null;
         List<Subcommand> currentChildren = root.getSubcommands();
         int argIndex = 0;
@@ -64,11 +63,10 @@ public class VelocityCommandExecute implements SimpleCommand, PlatformService {
         String[] parameters = Arrays.copyOfRange(args, argIndex, args.length);
 
         if (current == null) {
-            root.executeBase(sender);
-        } else {
-            Object[] parsedArgs = parseArguments(sender, current, parameters);
-            current.executeInternal(sender, parsedArgs);
+            current = root;
         }
+        Object[] parsedArgs = parseArguments(sender, current, parameters);
+        current.executeInternal(sender, parsedArgs);
     }
 
     private Object[] parseArguments(Sender sender, Subcommand cmd, String[] rawArgs) {

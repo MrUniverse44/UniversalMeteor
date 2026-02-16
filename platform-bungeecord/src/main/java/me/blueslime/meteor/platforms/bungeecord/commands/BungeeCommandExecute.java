@@ -27,8 +27,6 @@ public class BungeeCommandExecute extends Command implements TabExecutor, Platfo
         );
         this.rootCommand = rootCommand;
         this.registry = registry;
-
-        this.rootCommand.register();
     }
 
     @Override
@@ -70,11 +68,10 @@ public class BungeeCommandExecute extends Command implements TabExecutor, Platfo
         String[] params = Arrays.copyOfRange(args, argIndex, args.length);
 
         if (current == null) {
-            root.executeBase(sender);
-        } else {
-            Object[] parsedArgs = parseArguments(sender, current, params);
-            current.executeInternal(sender, parsedArgs);
+            current = root;
         }
+        Object[] parsedArgs = parseArguments(sender, current, params);
+        current.executeInternal(sender, parsedArgs);
     }
 
     private Object[] parseArguments(Sender sender, Subcommand cmd, String[] rawArgs) {

@@ -2,6 +2,7 @@ package me.blueslime.meteor.platforms.api.commands;
 
 import me.blueslime.meteor.platforms.api.entity.Sender;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
+import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -16,7 +17,12 @@ public abstract class Subcommand implements PlatformService {
     private Method executorMethod;
 
     public Subcommand() {
+        registerCommandData();
         scanExecutor();
+    }
+
+    public void registerCommandData() {
+
     }
 
     private void scanExecutor() {
@@ -38,9 +44,14 @@ public abstract class Subcommand implements PlatformService {
                         argument.withSuggestionKey(param.getAnnotation(Suggestion.class).value());
                     }
                     if (param.isAnnotationPresent(Suggestions.class)) {
-                        argument.withSuggestions(
-                            Arrays.asList(param.getAnnotation(Suggestions.class).suggests())
-                        );
+                        Suggestions suggestions = param.getAnnotation(Suggestions.class);
+                        if (suggestions.suggests().length > 0) {
+                            argument.withSuggestions(
+                                Arrays.asList(param.getAnnotation(Suggestions.class).suggests())
+                            );
+                        } else {
+                            argument.withSuggestions(new ArrayList<>());
+                        }
                     }
 
                     arguments.add(argument);
@@ -56,18 +67,34 @@ public abstract class Subcommand implements PlatformService {
         );
     }
 
-    protected void registerSubcommands(Subcommand... cmd) {
+    @SafeVarargs
+    protected final void registerSubcommands(Class<? extends Subcommand>... cmd) {
+        if (cmd == null || cmd.length == 0) return;
+        List<Subcommand> subcommands = new ArrayList<>();
+        for (Class<? extends Subcommand> subcommand : cmd) {
+            Subcommand instance = PluginConsumer.ofUnchecked(
+                () -> createInstance(subcommand),
+                e -> getLogger().error(e, "Can't create subcommand instance for: " + subcommand.getSimpleName()),
+                () -> null
+            );
+            if (instance != null) {
+                subcommands.add(instance);
+            }
+        }
+        registerSubcommands(subcommands.toArray(new Subcommand[0]));
+    }
+
+    public void registerSubcommands(Subcommand... cmd) {
         if (cmd == null || cmd.length == 0) return;
         subcommands.addAll(Arrays.asList(cmd));
     }
 
-    protected void registerArguments(Argument<?>... overrides) {
+    public void registerArguments(Argument<?>... overrides) {
         if (overrides == null) return;
 
         for (Argument<?> override : overrides) {
-            // Buscamos si ya existe un argumento con ese ID generado por scanExecutor
             arguments.replaceAll(current ->
-                    current.getId().equals(override.getId()) ? override : current
+                current.getId().equals(override.getId()) ? override : current
             );
 
             boolean exists = arguments.stream().anyMatch(a -> a.getId().equals(override.getId()));
@@ -88,7 +115,7 @@ public abstract class Subcommand implements PlatformService {
                 if (param.isAnnotationPresent(CommandSender.class)) {
                     invokeArgs.add(sender);
                 } else {
-                    if (args.length > argIndex) {
+                    if (args != null && args.length > argIndex) {
                         invokeArgs.add(args[argIndex++]);
                     } else {
                         invokeArgs.add(null);

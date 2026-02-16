@@ -22,7 +22,10 @@ public class BrigadierInjector {
         LiteralArgumentBuilder<CommandSource> root = LiteralArgumentBuilder.literal(command.getName());
 
         root.executes(context -> {
-            command.executeBase(VelocitySender.build(context.getSource()));
+            command.executeInternal(
+                VelocitySender.build(context.getSource()),
+                null
+            );
             return 1;
         });
 

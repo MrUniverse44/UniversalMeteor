@@ -20,7 +20,6 @@ public class PaperCommandExecute extends org.bukkit.command.Command {
         super(rootCommand.getName());
         this.rootCommand = rootCommand;
         this.registry = registry;
-        this.rootCommand.register();
         this.setAliases(new ArrayList<>(rootCommand.getAliases()));
         this.setDescription(rootCommand.getDescription());
     }
@@ -72,11 +71,11 @@ public class PaperCommandExecute extends org.bukkit.command.Command {
         String[] parameters = Arrays.copyOfRange(args, argIndex, args.length);
 
         if (current == null) {
-            root.executeBase(sender);
-        } else {
-            Object[] parsedArgs = parseArguments(sender, current, parameters);
-            current.executeInternal(sender, parsedArgs);
+            current = root;
         }
+
+        Object[] parsedArgs = parseArguments(sender, current, parameters);
+        current.executeInternal(sender, parsedArgs);
     }
 
     private Object[] parseArguments(Sender sender, Subcommand cmd, String[] rawArgs) {

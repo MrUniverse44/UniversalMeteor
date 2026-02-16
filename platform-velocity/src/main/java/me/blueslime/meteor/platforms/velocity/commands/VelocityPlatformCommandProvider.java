@@ -28,7 +28,6 @@ public class VelocityPlatformCommandProvider implements PlatformCommandProvider 
         CommandMeta meta = metaBuilder.build();
 
         try {
-            command.register();
             commandManager.register(meta, injector.build(command, registry));
         } catch (Exception e) {
             System.err.println("Error registering Brigadier command, falling back to Legacy: " + e.getMessage());
