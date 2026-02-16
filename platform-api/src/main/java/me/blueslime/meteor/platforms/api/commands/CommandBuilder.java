@@ -1,57 +1,54 @@
 package me.blueslime.meteor.platforms.api.commands;
 
 import me.blueslime.meteor.platforms.api.entity.Sender;
-import me.blueslime.meteor.platforms.api.service.PlatformService;
-import me.blueslime.meteor.utilities.consumer.PluginConsumer;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
-public class SubcommandBuilder implements PlatformService {
+@SuppressWarnings("unused")
+public class CommandBuilder {
 
-    private final String id;
+    private final String name;
+    private List<String> aliases = Collections.emptyList();
+    private String description = "";
     private final List<Argument<?>> arguments = new ArrayList<>();
     private final List<Subcommand> subcommands = new ArrayList<>();
     private CommandExecutor executor;
 
-    private SubcommandBuilder(String id) {
-        this.id = id;
+    private CommandBuilder(String name) {
+        this.name = name;
     }
 
-    public static SubcommandBuilder of(String id) {
-        return new SubcommandBuilder(id);
+    public static CommandBuilder of(String name) {
+        return new CommandBuilder(name);
     }
 
-    public SubcommandBuilder argument(Argument<?> argument) {
+    public CommandBuilder aliases(String... aliases) {
+        this.aliases = List.of(aliases);
+        return this;
+    }
+
+    public CommandBuilder description(String description) {
+        this.description = description;
+        return this;
+    }
+
+    public CommandBuilder argument(Argument<?> argument) {
         this.arguments.add(argument);
         return this;
     }
 
-    public SubcommandBuilder subcommands(Subcommand... subcommands) {
+    public CommandBuilder subcommands(Subcommand... subcommands) {
         if (subcommands != null) {
             this.subcommands.addAll(List.of(subcommands));
         }
         return this;
     }
 
-    @SafeVarargs
-    protected final SubcommandBuilder subcommands(Class<? extends Subcommand>... cmd) {
-        if (cmd == null || cmd.length == 0) return this;
-        List<Subcommand> subcommands = new ArrayList<>();
-        for (Class<? extends Subcommand> subcommand : cmd) {
-            Subcommand instance = PluginConsumer.ofUnchecked(
-                    () -> createInstance(subcommand),
-                    e -> getLogger().error(e, "Can't create subcommand instance for: " + subcommand.getSimpleName()),
-                    () -> null
-            );
-            if (instance != null) {
-                subcommands.add(instance);
-            }
-        }
-        return subcommands(subcommands.toArray(new Subcommand[0]));
-    }
-
-    public SubcommandBuilder subcommands(SubcommandBuilder... builders) {
+    public CommandBuilder subcommands(SubcommandBuilder... builders) {
         if (builders != null) {
             for (SubcommandBuilder builder : builders) {
                 this.subcommands.add(builder.build());
@@ -60,16 +57,26 @@ public class SubcommandBuilder implements PlatformService {
         return this;
     }
 
-    public SubcommandBuilder execute(CommandExecutor executor) {
+    public CommandBuilder execute(CommandExecutor executor) {
         this.executor = executor;
         return this;
     }
 
-    public Subcommand build() {
-        return new Subcommand() {
+    public Command build() {
+        return new Command() {
             @Override
-            public String getId() {
-                return id;
+            public @NotNull String getName() {
+                return name;
+            }
+
+            @Override
+            public Collection<String> getAliases() {
+                return aliases;
+            }
+
+            @Override
+            public @NotNull String getDescription() {
+                return description;
             }
 
             @Override
@@ -77,7 +84,6 @@ public class SubcommandBuilder implements PlatformService {
                 if (!arguments.isEmpty()) {
                     registerArguments(arguments.toArray(new Argument[0]));
                 }
-
                 if (!subcommands.isEmpty()) {
                     registerSubcommands(subcommands.toArray(new Subcommand[0]));
                 }

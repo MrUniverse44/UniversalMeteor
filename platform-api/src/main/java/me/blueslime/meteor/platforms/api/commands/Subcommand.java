@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@SuppressWarnings("unused")
 public abstract class Subcommand implements PlatformService {
 
     private final List<Subcommand> subcommands = new ArrayList<>();
@@ -21,7 +22,7 @@ public abstract class Subcommand implements PlatformService {
         scanExecutor();
     }
 
-    public void registerCommandData() {
+    protected void registerCommandData() {
 
     }
 
