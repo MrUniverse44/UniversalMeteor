@@ -5,8 +5,11 @@ import me.blueslime.meteor.platforms.api.entity.PlatformSender;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+
+import java.util.UUID;
 
 public class PaperSender extends PlatformSender<CommandSender, Component> {
 
@@ -54,6 +57,11 @@ public class PaperSender extends PlatformSender<CommandSender, Component> {
     @Override
     public String getName() {
         return handle instanceof LivingEntity entity ? entity.getName() : "[Console]";
+    }
+
+    @Override
+    public UUID getUniqueID() {
+        return handle instanceof Entity entity ? entity.getUniqueId() : UUID.fromString("0-0-0-0");
     }
 
     /**

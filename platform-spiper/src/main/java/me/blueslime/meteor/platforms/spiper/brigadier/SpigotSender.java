@@ -4,8 +4,11 @@ import me.blueslime.meteor.color.renders.StringRenderer;
 import me.blueslime.meteor.platforms.api.entity.PlatformSender;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+
+import java.util.UUID;
 
 public class SpigotSender extends PlatformSender<CommandSender, String> {
 
@@ -53,6 +56,11 @@ public class SpigotSender extends PlatformSender<CommandSender, String> {
     @Override
     public String getName() {
         return handle instanceof LivingEntity entity ? entity.getName() : "[Console]";
+    }
+
+    @Override
+    public UUID getUniqueID() {
+        return handle instanceof Entity entity ? entity.getUniqueId() : UUID.fromString("0-0-0-0");
     }
 
     /**

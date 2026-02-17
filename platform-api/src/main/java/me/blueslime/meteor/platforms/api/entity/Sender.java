@@ -1,5 +1,7 @@
 package me.blueslime.meteor.platforms.api.entity;
 
+import java.util.UUID;
+
 public interface Sender extends MessageNotifier {
 
     /**
@@ -8,6 +10,13 @@ public interface Sender extends MessageNotifier {
      * @return The name of the sender (e.g., player name or "Console").
      */
     String getName();
+
+    /**
+     * Gets the unique id of the sender
+     *
+     * @return The UUID of the sender (e.g., player uuid or "0-0-0-0" for console)
+     */
+    UUID getUniqueID();
 
     /**
      * Checks if the sender is a player.

@@ -6,6 +6,8 @@ import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 
+import java.util.UUID;
+
 public class BungeeSender extends PlatformSender<CommandSender, BaseComponent[]> {
 
 
@@ -53,6 +55,11 @@ public class BungeeSender extends PlatformSender<CommandSender, BaseComponent[]>
     @Override
     public String getName() {
         return handle instanceof ProxiedPlayer player ? player.getName() : "[Console]";
+    }
+
+    @Override
+    public UUID getUniqueID() {
+        return handle instanceof ProxiedPlayer player ? player.getUniqueId() : UUID.fromString("0-0-0-0");
     }
 
     /**

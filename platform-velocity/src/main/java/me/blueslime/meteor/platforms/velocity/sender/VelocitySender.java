@@ -7,6 +7,8 @@ import me.blueslime.meteor.color.renders.VelocitySpongeRenderer;
 import me.blueslime.meteor.platforms.api.entity.PlatformSender;
 import net.kyori.adventure.text.Component;
 
+import java.util.UUID;
+
 public class VelocitySender extends PlatformSender<CommandSource, Component> {
 
     /**
@@ -53,6 +55,11 @@ public class VelocitySender extends PlatformSender<CommandSource, Component> {
     @Override
     public String getName() {
         return handle instanceof Player player ? player.getUsername() : "[Console]";
+    }
+
+    @Override
+    public UUID getUniqueID() {
+        return handle instanceof Player player ? player.getUniqueId() : UUID.fromString("0-0-0-0");
     }
 
     /**
