@@ -17,8 +17,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class SpigotPlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, JavaPlugin> {
 
-    public SpigotPlatformAdapterBuilder(Class<P> mainClass) {
-        super(mainClass);
+    public SpigotPlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
+        super(mainClass, adapter);
     }
 
     @Override

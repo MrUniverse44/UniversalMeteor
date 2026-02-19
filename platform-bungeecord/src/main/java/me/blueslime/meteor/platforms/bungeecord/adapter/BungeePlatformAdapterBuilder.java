@@ -17,8 +17,8 @@ import net.md_5.bungee.api.plugin.Plugin;
 
 public class BungeePlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, Plugin> {
 
-    public BungeePlatformAdapterBuilder(Class<P> mainClass) {
-        super(mainClass);
+    public BungeePlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
+        super(mainClass, adapter);
     }
 
     @Override

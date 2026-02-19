@@ -11,8 +11,8 @@ import java.io.File;
 public interface SpigotPlatformAdapter<P extends PlatformPlugin> extends PlatformAdapter<P, JavaPlugin> {
 
     @Override
-    default PlatformAdapterBuilder<P, JavaPlugin> createAdapter(Class<P> clazz, File directory) {
-        return new SpigotPlatformAdapterBuilder<>(clazz)
+    default PlatformAdapterBuilder<P, JavaPlugin> createAdapter(Class<P> clazz, File directory, Object adapter) {
+        return new SpigotPlatformAdapterBuilder<>(clazz, adapter)
             .register(File.class, "directory", directory, true);
     }
 

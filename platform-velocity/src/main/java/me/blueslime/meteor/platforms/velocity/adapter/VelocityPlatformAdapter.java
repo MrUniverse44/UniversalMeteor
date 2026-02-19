@@ -10,8 +10,8 @@ import java.io.File;
 public interface VelocityPlatformAdapter<P extends PlatformPlugin> extends PlatformAdapter<P, ProxyServer> {
 
     @Override
-    default PlatformAdapterBuilder<P, ProxyServer> createAdapter(Class<P> clazz, File directory) {
-        return new VelocityPlatformAdapterBuilder<>(clazz)
+    default PlatformAdapterBuilder<P, ProxyServer> createAdapter(Class<P> clazz, File directory, Object adapter) {
+        return new VelocityPlatformAdapterBuilder<>(clazz, adapter)
             .register(File.class, "directory", directory, true);
     }
 

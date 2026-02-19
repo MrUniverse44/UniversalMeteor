@@ -40,6 +40,7 @@ public abstract class PlatformPlugin implements Implementer {
     protected PluginData pluginData;
     protected PlatformTasks tasks;
     protected PlatformCommands commands;
+    protected final Object adapter;
 
     public PlatformPlugin(PluginInfo info) {
         this.platform = info.getPlatform() == null ? Platforms.UNIVERSAL : info.getPlatform();
@@ -47,6 +48,7 @@ public abstract class PlatformPlugin implements Implementer {
         this.commands = info.getCommands();
         this.events = info.getPlatformEvents();
         this.logger = info.getLogger();
+        this.adapter = info.getAdapter();
         this.tasks = info.getTasks();
     }
 
@@ -65,6 +67,7 @@ public abstract class PlatformPlugin implements Implementer {
         registerImpl(Platforms.class, platform, true);
         registerImpl(PluginData.class, pluginData, true);
         registerImpl(PlatformCommands.class, commands, true);
+        registerImpl(Object.class, "adapter", adapter, true);
 
         onPreInitialize();
 
@@ -240,6 +243,51 @@ public abstract class PlatformPlugin implements Implementer {
 
     public PluginData getPluginData() {
         return pluginData;
+    }
+
+    /**
+     * Checks whether the underlying handle is an instance of the given type.
+     *
+     * @param type The class to check compatibility with.
+     * @return true if the handle is non-null and can be cast to {@code type}, false otherwise.
+     */
+    public boolean is(Class<?> type) {
+        Object handle = adapter;
+        if (handle == null || type == null) return false;
+        if (type == Object.class) return true;
+
+        Class<?> check = type.isPrimitive() ? primitiveToWrapper(type) : type;
+        return check.isInstance(handle);
+    }
+
+    /**
+     * Casts the underlying handle to a specific class type if compatible.
+     * <p>
+     * If the handle is not compatible with {@code type} this method returns {@code null}
+     * (no ClassCastException will be thrown).
+     *
+     * @param type The class to cast the handle to.
+     * @param <T>  The type of the class.
+     * @return The cast handle, or {@code null} if not compatible.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T to(Class<T> type) {
+        return is(type) ? (T) adapter : null;
+    }
+
+    /* Helper to map primitive types to their wrapper classes. */
+    public static Class<?> primitiveToWrapper(Class<?> primitive) {
+        if (!primitive.isPrimitive()) return primitive;
+        if (primitive == boolean.class) return Boolean.class;
+        if (primitive == byte.class)    return Byte.class;
+        if (primitive == char.class)    return Character.class;
+        if (primitive == short.class)   return Short.class;
+        if (primitive == int.class)     return Integer.class;
+        if (primitive == long.class)    return Long.class;
+        if (primitive == float.class)   return Float.class;
+        if (primitive == double.class)  return Double.class;
+        if (primitive == void.class)    return Void.class;
+        return primitive; // fallback (shouldn't happen)
     }
 }
 

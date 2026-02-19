@@ -11,8 +11,8 @@ import java.io.File;
 public interface BungeePlatformAdapter<P extends PlatformPlugin> extends PlatformAdapter<P, Plugin> {
 
     @Override
-    default PlatformAdapterBuilder<P, Plugin> createAdapter(Class<P> clazz, File directory) {
-        return new BungeePlatformAdapterBuilder<>(clazz)
+    default PlatformAdapterBuilder<P, Plugin> createAdapter(Class<P> clazz, File directory, Object adapter) {
+        return new BungeePlatformAdapterBuilder<>(clazz, adapter)
             .register(File.class, "directory", directory, true);
     }
 

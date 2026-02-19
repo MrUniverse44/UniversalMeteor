@@ -12,8 +12,9 @@ public abstract class PlatformAdapterBuilder<P extends PlatformPlugin, I> {
     protected final PluginInfo info = new PluginInfo();
     protected final Class<P> clazz;
 
-    public PlatformAdapterBuilder(Class<P> mainClass) {
+    public PlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
         this.clazz = mainClass;
+        this.info.setAdapter(adapter);
     }
 
     public abstract PlatformAdapterBuilder<P, I> registerMainClass(I pluginInstance);

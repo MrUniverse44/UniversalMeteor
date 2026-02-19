@@ -11,8 +11,8 @@ import java.io.File;
 public interface PaperPlatformAdapter<P extends PlatformPlugin> extends PlatformAdapter<P, JavaPlugin> {
 
     @Override
-    default PlatformAdapterBuilder<P, JavaPlugin> createAdapter(Class<P> clazz, File directory) {
-        return new PaperPlatformAdapterBuilder<>(clazz)
+    default PlatformAdapterBuilder<P, JavaPlugin> createAdapter(Class<P> clazz, File directory, Object adapter) {
+        return new PaperPlatformAdapterBuilder<>(clazz, adapter)
             .register(File.class, "directory", directory, true);
     }
 

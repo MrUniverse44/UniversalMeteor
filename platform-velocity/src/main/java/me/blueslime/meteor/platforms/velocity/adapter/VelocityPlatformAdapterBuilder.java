@@ -19,8 +19,8 @@ import net.kyori.adventure.text.Component;
 
 public class VelocityPlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, ProxyServer> {
 
-    public VelocityPlatformAdapterBuilder(Class<P> mainClass) {
-        super(mainClass);
+    public VelocityPlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
+        super(mainClass, adapter);
     }
 
     public PlatformAdapterBuilder<P, ProxyServer> registerPluginData(PluginContainer plugin) {

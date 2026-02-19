@@ -18,8 +18,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class PaperPlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, JavaPlugin> {
 
-    public PaperPlatformAdapterBuilder(Class<P> mainClass) {
-        super(mainClass);
+    public PaperPlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
+        super(mainClass, adapter);
     }
 
     @Override

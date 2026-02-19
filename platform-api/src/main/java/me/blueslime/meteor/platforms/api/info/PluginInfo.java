@@ -15,6 +15,7 @@ public class PluginInfo {
     private PluginData pluginData = null;
     private PlatformTasks tasks = null;
     private Platforms platform = null;
+    private Object adapter = null;
 
     public void setLogger(PlatformLogger logger) {
         this.logger = logger;
@@ -30,6 +31,10 @@ public class PluginInfo {
 
     public void setPluginData(PluginData pluginData) {
         this.pluginData = pluginData;
+    }
+
+    public void setAdapter(Object adapter) {
+        this.adapter = adapter;
     }
 
     public void setPlatform(Platforms platform) {
@@ -62,5 +67,9 @@ public class PluginInfo {
 
     public PlatformCommands getCommands() {
         return commands;
+    }
+
+    public Object getAdapter() {
+        return adapter;
     }
 }

@@ -8,7 +8,7 @@
     <parent>
         <groupId>me.blueslime.meteor</groupId>
         <artifactId>UniversalMeteor</artifactId>
-        <version>3.1.0-UMR</version>
+        <version>3.1.1-UMR</version>
     </parent>
 
     <artifactId>modules-paper</artifactId>

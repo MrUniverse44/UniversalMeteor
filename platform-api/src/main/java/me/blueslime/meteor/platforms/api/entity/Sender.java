@@ -2,6 +2,8 @@ package me.blueslime.meteor.platforms.api.entity;
 
 import java.util.UUID;
 
+import static me.blueslime.meteor.platforms.api.plugin.PlatformPlugin.primitiveToWrapper;
+
 public interface Sender extends MessageNotifier {
 
     /**
@@ -48,17 +50,32 @@ public interface Sender extends MessageNotifier {
     Object getHandle();
 
     /**
-     * Casts the underlying handle to a specific class type.
+     * Checks whether the underlying handle is an instance of the given type.
+     *
+     * @param type The class to check compatibility with.
+     * @return true if the handle is non-null and can be cast to {@code type}, false otherwise.
+     */
+    default boolean is(Class<?> type) {
+        Object handle = getHandle();
+        if (handle == null || type == null) return false;
+
+        Class<?> check = type.isPrimitive() ? primitiveToWrapper(type) : type;
+        return check.isInstance(handle);
+    }
+
+    /**
+     * Casts the underlying handle to a specific class type if compatible.
      * <p>
-     * Useful when you need to access platform-specific methods not covered by this interface.
+     * If the handle is not compatible with {@code type} this method returns {@code null}
+     * (no ClassCastException will be thrown).
      *
      * @param type The class to cast the handle to.
      * @param <T>  The type of the class.
-     * @return The cast handle.
-     * @throws ClassCastException If the handle is not an instance of the specified type.
+     * @return The cast handle, or {@code null} if not compatible.
      */
     @SuppressWarnings("unchecked")
     default <T> T to(Class<T> type) {
-        return (T) getHandle();
+        return is(type) ? (T) getHandle() : null;
     }
+
 }

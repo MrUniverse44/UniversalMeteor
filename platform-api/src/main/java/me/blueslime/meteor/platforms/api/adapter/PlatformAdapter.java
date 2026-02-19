@@ -7,10 +7,10 @@ import java.nio.file.Path;
 
 public interface PlatformAdapter<P extends PlatformPlugin, I> {
 
-    PlatformAdapterBuilder<P, I> createAdapter(Class<P> clazz, File adapter);
+    PlatformAdapterBuilder<P, I> createAdapter(Class<P> clazz, File directory, Object adapter);
 
-    default PlatformAdapterBuilder<P, I> createAdapter(Class<P> clazz, Path path) {
-        return createAdapter(clazz, path.toFile());
+    default PlatformAdapterBuilder<P, I> createAdapter(Class<P> clazz, Path path, Object adapter) {
+        return createAdapter(clazz, path.toFile(), adapter);
     }
 
 }
