@@ -7,8 +7,6 @@ import me.blueslime.meteor.storage.references.ReferencedObject;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public abstract class StorageDatabase implements PlatformService {
 

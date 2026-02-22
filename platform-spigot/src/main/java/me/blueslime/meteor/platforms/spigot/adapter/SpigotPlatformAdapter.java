@@ -12,7 +12,7 @@ public interface SpigotPlatformAdapter<P extends PlatformPlugin> extends Platfor
 
     @Override
     default PlatformAdapterBuilder<P, JavaPlugin> createAdapter(Class<P> clazz, File directory, Object adapter) {
-        return new SpigotPlatformAdapterBuilder<>(clazz, adapter)
+        return new SpigotPlatformAdapterBuilder<>(clazz, directory, adapter)
             .register(File.class, "directory", directory, true);
     }
 

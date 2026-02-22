@@ -16,10 +16,12 @@ import me.blueslime.meteor.platforms.paper.tasks.PaperPlatformTasks;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+
 public class PaperPlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, JavaPlugin> {
 
-    public PaperPlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
-        super(mainClass, adapter);
+    public PaperPlatformAdapterBuilder(Class<P> mainClass, File directory, Object adapter) {
+        super(mainClass, directory, adapter);
     }
 
     @Override

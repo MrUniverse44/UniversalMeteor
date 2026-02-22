@@ -5,6 +5,7 @@ import me.blueslime.meteor.platforms.api.info.PluginInfo;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
 import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 
+import java.io.File;
 import java.lang.reflect.Constructor;
 
 public abstract class PlatformAdapterBuilder<P extends PlatformPlugin, I> {
@@ -12,8 +13,9 @@ public abstract class PlatformAdapterBuilder<P extends PlatformPlugin, I> {
     protected final PluginInfo info = new PluginInfo();
     protected final Class<P> clazz;
 
-    public PlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
+    public PlatformAdapterBuilder(Class<P> mainClass, File directory, Object adapter) {
         this.clazz = mainClass;
+        this.info.setDirectory(directory);
         this.info.setAdapter(adapter);
     }
 

@@ -15,10 +15,12 @@ import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.plugin.Plugin;
 
+import java.io.File;
+
 public class BungeePlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, Plugin> {
 
-    public BungeePlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
-        super(mainClass, adapter);
+    public BungeePlatformAdapterBuilder(Class<P> mainClass, File directory, Object adapter) {
+        super(mainClass, directory, adapter);
     }
 
     @Override

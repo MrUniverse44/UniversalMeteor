@@ -11,7 +11,7 @@ public interface VelocityPlatformAdapter<P extends PlatformPlugin> extends Platf
 
     @Override
     default PlatformAdapterBuilder<P, ProxyServer> createAdapter(Class<P> clazz, File directory, Object adapter) {
-        return new VelocityPlatformAdapterBuilder<>(clazz, adapter)
+        return new VelocityPlatformAdapterBuilder<>(clazz, directory, adapter)
             .register(File.class, "directory", directory, true);
     }
 

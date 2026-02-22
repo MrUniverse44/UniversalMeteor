@@ -17,10 +17,12 @@ import me.blueslime.meteor.platforms.velocity.events.VelocityPlatformEvents;
 import me.blueslime.meteor.platforms.velocity.tasks.VelocityPlatformTasks;
 import net.kyori.adventure.text.Component;
 
+import java.io.File;
+
 public class VelocityPlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, ProxyServer> {
 
-    public VelocityPlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
-        super(mainClass, adapter);
+    public VelocityPlatformAdapterBuilder(Class<P> mainClass, File directory, Object adapter) {
+        super(mainClass, directory, adapter);
     }
 
     public PlatformAdapterBuilder<P, ProxyServer> registerPluginData(PluginContainer plugin) {

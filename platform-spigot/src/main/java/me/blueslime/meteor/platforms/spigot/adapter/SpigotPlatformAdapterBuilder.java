@@ -15,10 +15,12 @@ import me.blueslime.meteor.platforms.spigot.tasks.SpigotPlatformTasks;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+
 public class SpigotPlatformAdapterBuilder<P extends PlatformPlugin> extends PlatformAdapterBuilder<P, JavaPlugin> {
 
-    public SpigotPlatformAdapterBuilder(Class<P> mainClass, Object adapter) {
-        super(mainClass, adapter);
+    public SpigotPlatformAdapterBuilder(Class<P> mainClass, File directory, Object adapter) {
+        super(mainClass, directory, adapter);
     }
 
     @Override

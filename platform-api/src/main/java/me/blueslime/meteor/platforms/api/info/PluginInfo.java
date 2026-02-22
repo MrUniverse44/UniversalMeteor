@@ -7,6 +7,8 @@ import me.blueslime.meteor.platforms.api.events.PlatformEvents;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.tasks.PlatformTasks;
 
+import java.io.File;
+
 public class PluginInfo {
 
     private PlatformEvents platformEvents = null;
@@ -16,6 +18,7 @@ public class PluginInfo {
     private PlatformTasks tasks = null;
     private Platforms platform = null;
     private Object adapter = null;
+    private File directory = null;
 
     public void setLogger(PlatformLogger logger) {
         this.logger = logger;
@@ -69,7 +72,15 @@ public class PluginInfo {
         return commands;
     }
 
+    public File getDirectory() {
+        return directory;
+    }
+
     public Object getAdapter() {
         return adapter;
+    }
+
+    public void setDirectory(File directory) {
+        this.directory = directory;
     }
 }

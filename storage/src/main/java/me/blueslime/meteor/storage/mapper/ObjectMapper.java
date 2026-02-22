@@ -11,6 +11,7 @@ import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Function;
 
 @SuppressWarnings("unchecked")
@@ -52,9 +53,13 @@ public class ObjectMapper implements PlatformService {
         collections.put(HashSet.class, HashSet::new);
         collections.put(Set.class, HashSet::new);
         collections.put(CopyOnWriteArrayList.class, CopyOnWriteArrayList::new);
+        collections.put(CopyOnWriteArraySet.class, CopyOnWriteArraySet::new);
         collections.put(TreeSet.class, TreeSet::new);
         collections.put(List.class, ArrayList::new);
         collections.put(Collection.class, ArrayList::new);
+        collections.put(Map.class, s -> new HashMap<>());
+        collections.put(HashMap.class, s -> new HashMap<>());
+        collections.put(ConcurrentHashMap.class, concurrentHashMap -> new ConcurrentHashMap<>());
     }
 
     public Document toDocument(Object obj) {

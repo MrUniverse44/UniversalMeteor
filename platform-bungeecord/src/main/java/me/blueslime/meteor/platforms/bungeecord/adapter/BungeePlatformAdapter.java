@@ -12,7 +12,7 @@ public interface BungeePlatformAdapter<P extends PlatformPlugin> extends Platfor
 
     @Override
     default PlatformAdapterBuilder<P, Plugin> createAdapter(Class<P> clazz, File directory, Object adapter) {
-        return new BungeePlatformAdapterBuilder<>(clazz, adapter)
+        return new BungeePlatformAdapterBuilder<>(clazz, directory, adapter)
             .register(File.class, "directory", directory, true);
     }
 

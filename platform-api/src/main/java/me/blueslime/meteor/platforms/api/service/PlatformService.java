@@ -11,6 +11,8 @@ import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
 import me.blueslime.meteor.platforms.api.tasks.PlatformTasks;
 
+import java.io.File;
+
 public interface PlatformService extends Service, Implementer {
 
     default PlatformLogger getLogger() {
@@ -43,6 +45,18 @@ public interface PlatformService extends Service, Implementer {
 
     default PlatformConfigurations getConfigurationProvider() {
         return fetch(PlatformConfigurations.class);
+    }
+
+    default File getDirectory() {
+        return getPlugin().getDirectory();
+    }
+
+    default File getFileOfDirectory(String fileName) {
+        return getPlugin().getFileOfDirectory(fileName);
+    }
+
+    default File getFileOfSubdirectory(String subdirectory, String fileName) {
+        return getPlugin().getFileOfSubdirectory(subdirectory, fileName);
     }
 
 }

@@ -13,6 +13,7 @@ import me.blueslime.meteor.platforms.api.service.ServiceContainer;
 import me.blueslime.meteor.platforms.api.tasks.PlatformTasks;
 import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 
+import java.io.File;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -41,10 +42,12 @@ public abstract class PlatformPlugin implements Implementer {
     protected PlatformTasks tasks;
     protected PlatformCommands commands;
     protected final Object adapter;
+    protected final File directory;
 
     public PlatformPlugin(PluginInfo info) {
         this.platform = info.getPlatform() == null ? Platforms.UNIVERSAL : info.getPlatform();
         this.pluginData = info.getPluginData();
+        this.directory = info.getDirectory();
         this.commands = info.getCommands();
         this.events = info.getPlatformEvents();
         this.logger = info.getLogger();
@@ -168,7 +171,7 @@ public abstract class PlatformPlugin implements Implementer {
         onServiceRegistered(service);
     }
 
-    /** Called after a service is registered (override to wire registration maps, logger, etc). */
+    /** Called after a service is registered (override to wire registration maps, logger, etc.). */
     protected void onServiceRegistered(Service service) {
         if (service.isPersistent()) {
             autoRegister(service.getClass(), service);
@@ -273,6 +276,16 @@ public abstract class PlatformPlugin implements Implementer {
     @SuppressWarnings("unchecked")
     public <T> T to(Class<T> type) {
         return is(type) ? (T) adapter : null;
+    }
+
+    public File getDirectory() { return directory; }
+
+    public File getFileOfDirectory(String fileName) {
+        return new File(directory, fileName);
+    }
+
+    public File getFileOfSubdirectory(String subdirectory, String fileName) {
+        return new File(getFileOfDirectory(subdirectory), fileName);
     }
 
     /* Helper to map primitive types to their wrapper classes. */

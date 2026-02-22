@@ -12,7 +12,7 @@ public interface PaperPlatformAdapter<P extends PlatformPlugin> extends Platform
 
     @Override
     default PlatformAdapterBuilder<P, JavaPlugin> createAdapter(Class<P> clazz, File directory, Object adapter) {
-        return new PaperPlatformAdapterBuilder<>(clazz, adapter)
+        return new PaperPlatformAdapterBuilder<>(clazz, directory, adapter)
             .register(File.class, "directory", directory, true);
     }
 
