@@ -42,6 +42,9 @@ public class YamlConfiguration {
             return new PluginConfiguration(defaults);
         }
         String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+        if (content.startsWith("\uFEFF")) {
+            content = content.substring(1);
+        }
         return getPluginConfiguration(defaults, content);
     }
 
