@@ -426,6 +426,9 @@ public class ObjectMapper implements PlatformService {
             String key = field.getName();
             String def = "";
             boolean hasDef = false;
+            if (field.isAnnotationPresent(StorageIdentifier.class)) {
+                key = "_id";
+            }
             if (field.isAnnotationPresent(StorageKey.class)) {
                 StorageKey ann = field.getAnnotation(StorageKey.class);
                 if (!ann.key().isEmpty()) key = ann.key();
@@ -460,7 +463,10 @@ public class ObjectMapper implements PlatformService {
                     def = ann.defaultValue();
                     hasDef = true;
                 }
+            } else if (p.isAnnotationPresent(StorageIdentifier.class)) {
+                k = "_id";
             }
+
             this.storageKey = k;
             this.defaultValue = def;
             this.hasDefaultValue = hasDef;
@@ -491,6 +497,8 @@ public class ObjectMapper implements PlatformService {
                     def = ann.defaultValue();
                     hasDef = true;
                 }
+            } else if (rc.isAnnotationPresent(StorageIdentifier.class)) {
+                sKey = "_id";
             }
             this.storageKey = sKey;
             this.defaultValue = def;
