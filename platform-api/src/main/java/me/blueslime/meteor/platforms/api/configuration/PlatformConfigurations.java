@@ -25,27 +25,37 @@ public interface PlatformConfigurations {
     PlatformConfigurations DEFAULT = new PlatformConfigurations() {
         @Override
         public ConfigurationHandle load(File fileName, InputStream resource) {
-            return new DefaultConfigurationHandle(fileName, resource);
+            ConfigurationHandle handle = new DefaultConfigurationHandle(fileName, resource);
+            handle.load();
+            return handle;
         }
 
         @Override
         public ConfigurationHandle load(File fileName, String resource) {
-            return new DefaultConfigurationHandle(fileName, resource);
+            ConfigurationHandle handle = new DefaultConfigurationHandle(fileName, resource);
+            handle.load();
+            return handle;
         }
 
         @Override
         public ConfigurationHandle load(Path path, InputStream resource) {
-            return new DefaultConfigurationHandle(path.toFile(), resource);
+            ConfigurationHandle handle = new DefaultConfigurationHandle(path.toFile(), resource);
+            handle.load();
+            return handle;
         }
 
         @Override
         public ConfigurationHandle load(Path path, String resource) {
-            return new DefaultConfigurationHandle(path.toFile(), resource);
+            ConfigurationHandle handle = new DefaultConfigurationHandle(path.toFile(), resource);
+            handle.load();
+            return handle;
         }
 
         @Override
         public ConfigurationHandle load(File fileName) {
-            return new DefaultConfigurationHandle(fileName);
+            ConfigurationHandle handle = new DefaultConfigurationHandle(fileName);
+            handle.load();
+            return handle;
         }
 
         @Override

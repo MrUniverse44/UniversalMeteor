@@ -11,7 +11,7 @@ import java.util.Set;
 
 public class DefaultConfigurationHandle extends ConfigurationHandle {
 
-    private PluginConfiguration configuration = PluginConfiguration.EMPTY;
+    private PluginConfiguration configuration;
 
     public DefaultConfigurationHandle(File file, InputStream resource) {
         super(file, resource);
@@ -30,7 +30,7 @@ public class DefaultConfigurationHandle extends ConfigurationHandle {
      */
     @Override
     public void load() {
-        configuration = PluginConsumer.ofUnchecked(
+        this.configuration = PluginConsumer.ofUnchecked(
             () -> YamlConfiguration.load(file),
             e -> getLogger().error(e, "Failed to load configuration file: " + e.getMessage()),
             PluginConfiguration::new

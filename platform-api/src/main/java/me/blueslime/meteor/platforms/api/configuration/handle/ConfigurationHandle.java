@@ -26,7 +26,6 @@ public abstract class ConfigurationHandle {
         this.resource = resource;
         this.file = file;
         verify();
-        load();
     }
 
     public ConfigurationHandle(ConfigurationHandle parent, Object parentConfiguration) {
@@ -38,14 +37,12 @@ public abstract class ConfigurationHandle {
         this.resource = FileUtil.build(resource);
         this.file = file;
         verify();
-        load();
     }
 
     public ConfigurationHandle(File file) {
         this.resource = FileUtil.build(file.getName());
         this.file = file;
         verify();
-        load();
     }
 
     /**
