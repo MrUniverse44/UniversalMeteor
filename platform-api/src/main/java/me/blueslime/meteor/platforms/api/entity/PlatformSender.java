@@ -114,10 +114,6 @@ public abstract class PlatformSender<T, C> implements Sender {
             return;
         }
 
-        if (!configuration.contains(path)) {
-            return;
-        }
-
         Object obj = configuration.get(path);
 
         if (obj instanceof List) {
