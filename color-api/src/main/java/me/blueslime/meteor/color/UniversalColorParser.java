@@ -2,10 +2,8 @@ package me.blueslime.meteor.color;
 
 import java.util.*;
 
-@SuppressWarnings({"UnnecessaryLocalVariable", "ConstantValue", "SequencedCollectionMethodCanBeUsed", "SameParameterValue", "UnusedAssignment"})
 public class UniversalColorParser {
 
-    // Safety limits
     private static final int MAX_SEGMENTS = 50_000;
     private static final int MAX_GRADIENT_EXPANSION = 4096;
 
@@ -14,15 +12,23 @@ public class UniversalColorParser {
         public final Color color;
         public final boolean gradient;
         public final boolean bold, italic, underlined, strikethrough, obfuscated;
+
         public Segment(String text, Color color, boolean gradient, boolean bold, boolean italic, boolean underlined, boolean strikethrough, boolean obfuscated) {
-            this.text = text; this.color = color; this.gradient = gradient; this.bold = bold; this.italic = italic; this.underlined = underlined; this.strikethrough = strikethrough; this.obfuscated = obfuscated;
+            this.text = text;
+            this.color = color; this.gradient = gradient; this.bold = bold; this.italic = italic; this.underlined = underlined; this.strikethrough = strikethrough; this.obfuscated = obfuscated;
         }
+
         public Segment(String text, Color color, boolean bold, boolean italic, boolean underlined, boolean strikethrough, boolean obfuscated) {
             this(text, color, false, bold, italic, underlined, strikethrough, obfuscated);
         }
-        @SuppressWarnings("unused")
-        public Segment(String text, Color color) { this(text, color, false, false, false, false, false); }
-        @Override public String toString(){ return String.format("[%s %s]%s", color==null?"null":color.toHex(), (bold?"B":"")+(italic?"I":"")+(underlined?"U":"")+(strikethrough?"S":""),(text==null?"":text)); }
+
+        public Segment(String text, Color color) {
+            this(text, color, false, false, false, false, false, false);
+        }
+
+        public String toString() {
+            return "[%s %s]%s".formatted(color == null ? "null" : color.toHex(), (bold ? "B" : "") + (italic ? "I" : "") + (underlined ? "U" : "") + (strikethrough ? "S" : ""), (text == null ? "" : text));
+        }
     }
 
     public record Color(int r, int g, int b) {
@@ -38,26 +44,17 @@ public class UniversalColorParser {
         }
 
         public String toHex() {
-            return String.format("#%02x%02x%02x", r, g, b);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!(o instanceof Color(int r1, int g1, int b1))) return false;
-            return r1 == r && g1 == g && b1 == b;
+            return "#%02x%02x%02x".formatted(r, g, b);
         }
     }
 
-    // MiniMessage-like named colors -> legacy code
-    private static final Map<String, Character> NAME_TO_LEGACY = new HashMap<>();
-    static {
-        NAME_TO_LEGACY.put("black", '0'); NAME_TO_LEGACY.put("darkgreen",'2');
-        NAME_TO_LEGACY.put("darkred", '4'); NAME_TO_LEGACY.put("gold", '6'); NAME_TO_LEGACY.put("gray", '7');
-        NAME_TO_LEGACY.put("dark_gray", '8'); NAME_TO_LEGACY.put("blue", '9'); NAME_TO_LEGACY.put("green", 'a'); NAME_TO_LEGACY.put("aqua", 'b');
-        NAME_TO_LEGACY.put("red", 'c'); NAME_TO_LEGACY.put("light_purple", 'd'); NAME_TO_LEGACY.put("yellow", 'e'); NAME_TO_LEGACY.put("white", 'f');
-        // additional common aliases
-        NAME_TO_LEGACY.put("dark_blue",'1'); NAME_TO_LEGACY.put("dark_green",'2'); NAME_TO_LEGACY.put("dark_aqua",'3'); NAME_TO_LEGACY.put("dark_purple",'5');
-    }
+    private static final Map<String, Character> NAME_TO_LEGACY = Map.ofEntries(
+            Map.entry("black", '0'), Map.entry("dark_blue", '1'), Map.entry("dark_green", '2'), Map.entry("darkgreen", '2'),
+            Map.entry("dark_aqua", '3'), Map.entry("dark_red", '4'), Map.entry("darkred", '4'), Map.entry("dark_purple", '5'),
+            Map.entry("gold", '6'), Map.entry("gray", '7'), Map.entry("dark_gray", '8'), Map.entry("blue", '9'),
+            Map.entry("green", 'a'), Map.entry("aqua", 'b'), Map.entry("red", 'c'), Map.entry("light_purple", 'd'),
+            Map.entry("yellow", 'e'), Map.entry("white", 'f')
+    );
 
     private static Color legacyCodeToColor(char code) {
         return switch (Character.toLowerCase(code)) {
@@ -81,148 +78,125 @@ public class UniversalColorParser {
         };
     }
 
-    // ---------------- Parsing ----------------
     public static List<Segment> parse(String input) {
         List<Segment> out = new ArrayList<>();
         StringBuilder cur = new StringBuilder();
-        Color curColor = null; boolean bold=false, italic=false, under=false, strike=false, obf=false;
+        Color curColor = null;
+        boolean bold = false, italic = false, under = false, strike = false, obf = false;
         int segmentsCreated = 0;
-        int i=0, len = input.length();
-        while (i < len) {
-            if (segmentsCreated > MAX_SEGMENTS) { cur.append(input.substring(i)); break; }
-            char ch = input.charAt(i);
-            if (ch == '&') {
-                // escaped && => literal &
-                if (i+1 < len && input.charAt(i+1) == '&') { cur.append('&'); i += 2; continue; }
+        int i = 0, len = input.length();
 
-                // try &x hex-with-separators
+        while (i < len) {
+            if (segmentsCreated > MAX_SEGMENTS) {
+                cur.append(input.substring(i));
+                break;
+            }
+            char ch = input.charAt(i);
+
+            if (ch == '&') {
+                if (i + 1 < len && input.charAt(i + 1) == '&') { cur.append('&'); i += 2; continue; }
+
                 ParseHexResult ph = tryParseAmpersandHex(input, i);
                 if (ph != null) {
                     if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
                     curColor = ph.color; i = ph.newIndex; continue;
                 }
 
-                // try '&#' inline hex (do NOT consume following &)
-                if (i+1 < len && input.charAt(i+1) == '#') {
+                if (i + 1 < len && input.charAt(i + 1) == '#') {
                     if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
-                    int j = i+2; StringBuilder hx = new StringBuilder();
+                    int j = i + 2; StringBuilder hx = new StringBuilder();
                     while (j < len && isHexChar(input.charAt(j)) && hx.length() < 6) { hx.append(input.charAt(j)); j++; }
                     if (hx.length() >= 3) { curColor = Color.fromHex(hx.toString()); i = j; continue; }
-                    // malformed: fallthrough and treat as literal
                 }
 
-                // &name& style like &gold&
                 int j = i + 1;
-                while (j < len && (Character.isLetter(input.charAt(j)) || input.charAt(j) == '_' || input.charAt(j) == '-')) {
-                    j++;
-                }
+                while (j < len && (Character.isLetter(input.charAt(j)) || input.charAt(j) == '_' || input.charAt(j) == '-')) j++;
                 if (j < len && j > i + 1 && input.charAt(j) == '&') {
                     String name = input.substring(i + 1, j).toLowerCase();
                     Character code = NAME_TO_LEGACY.get(name);
                     if (code != null) {
-                        if (!cur.isEmpty()) {
-                            out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf));
-                            cur.setLength(0);
-                            segmentsCreated++;
-                        }
-                        curColor = legacyCodeToColor(code);
-                        i = j + 1;
-                        continue;
+                        if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
+                        curColor = legacyCodeToColor(code); i = j + 1; continue;
                     }
                 }
 
-                // single char codes: &l &o &n &m &k &r or legacy colors &a
-                if (i+1 < len) {
+                if (i + 1 < len) {
                     if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
-                    char code = Character.toLowerCase(input.charAt(i+1)); i += 2;
+                    char code = Character.toLowerCase(input.charAt(i + 1)); i += 2;
                     switch (code) {
-                        case 'k': obf = true; break; case 'l': bold = true; break; case 'm': strike = true; break; case 'n': under = true; break; case 'o': italic = true; break;
-                        case 'r': curColor = null; bold = italic = under = strike = obf = false; break;
-                        default:
+                        case 'k' -> obf = true;
+                        case 'l' -> bold = true;
+                        case 'm' -> strike = true;
+                        case 'n' -> under = true;
+                        case 'o' -> italic = true;
+                        case 'r' -> {
+                            curColor = null; bold = false; italic = false; under = false; strike = false; obf = false;
+                        }
+                        default -> {
                             Color c = legacyCodeToColor(code);
-                            if (c != null) { curColor = c; } else { cur.append('&').append(code); }
+                            if (c != null) {
+                                curColor = c; bold = false; italic = false; under = false; strike = false; obf = false;
+                            } else {
+                                cur.append('&').append(code);
+                            }
                             break;
+                        }
                     }
                     continue;
                 }
-                // single trailing &
                 cur.append('&'); i++; continue;
             }
 
-            // Angle tags: <#hex> ... </#>, <GRADIENT:hex[,hex...]>, <RAINBOW>, <red> etc.
             if (ch == '<') {
-                // try <#HEX>
                 if (i + 1 < len && input.charAt(i + 1) == '#') {
-                    // flush actual buffer
-                    if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
-
-                    int j = i + 2;
-                    StringBuilder hx = new StringBuilder();
+                    int j = i + 2; StringBuilder hx = new StringBuilder();
                     while (j < len && isHexChar(input.charAt(j)) && hx.length() < 6) { hx.append(input.charAt(j)); j++; }
-
                     if (j < len && input.charAt(j) == '>') {
+                        if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
                         j++;
                         int closeSimple = input.indexOf("</#>", j);
                         int closePrefix = input.indexOf("</#", j);
-
                         if (closeSimple != -1) {
-                            String body = input.substring(j, closeSimple);
-                            out.addAll(applyColorOverrideToParsed(body, Color.fromHex(hx.toString()), bold, italic, under, strike, obf));
+                            out.addAll(applyColorOverrideToParsed(input.substring(j, closeSimple), Color.fromHex(hx.toString()), bold, italic, under, strike, obf));
                             int closeEnd = input.indexOf('>', closeSimple);
                             i = (closeEnd == -1) ? len : closeEnd + 1;
                             continue;
                         } else if (closePrefix != -1) {
                             int after = closePrefix + "</#".length();
-                            StringBuilder hx2 = new StringBuilder();
-                            int k = after;
+                            StringBuilder hx2 = new StringBuilder(); int k = after;
                             while (k < len && isHexChar(input.charAt(k)) && hx2.length() < 6) { hx2.append(input.charAt(k)); k++; }
                             if (k < len && input.charAt(k) == '>') {
-                                String body = input.substring(j, closePrefix);
-                                out.addAll(applyColorOverrideToParsed(body, Color.fromHex(hx.toString()), bold, italic, under, strike, obf));
-                                i = k + 1;
-                                continue;
+                                out.addAll(applyColorOverrideToParsed(input.substring(j, closePrefix), Color.fromHex(hx.toString()), bold, italic, under, strike, obf));
+                                i = k + 1; continue;
                             }
                         }
-
                         int nextTag = input.indexOf('<', j);
                         int end = (nextTag == -1) ? len : nextTag;
-                        String body = input.substring(j, end);
-                        out.addAll(applyColorOverrideToParsed(body, Color.fromHex(hx.toString()), bold, italic, under, strike, obf));
-                        i = end;
-                        continue;
+                        out.addAll(applyColorOverrideToParsed(input.substring(j, end), Color.fromHex(hx.toString()), bold, italic, under, strike, obf));
+                        i = end; continue;
                     }
                 }
 
-                if (matchesAtIgnoreCase(input, i, "<GRADIENT:", true)) {
-                    int colon = i + "<GRADIENT:".length();
-                    int j = colon;
-                    StringBuilder token = new StringBuilder();
+                if (matchesAtIgnoreCase(input, i, "<GRADIENT:")) {
+                    int colon = i + "<GRADIENT:".length(); int j = colon; StringBuilder token = new StringBuilder();
                     while (j < len && input.charAt(j) != '>') { token.append(input.charAt(j)); j++; }
                     if (j < len && input.charAt(j) == '>') {
+                        if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
                         j++;
-                        String tok = token.toString();
-                        String[] parts = tok.split("[,;|:]");
+                        String[] parts = token.toString().split("[,;|:]");
                         List<Color> stops = new ArrayList<>();
                         for (String p : parts) {
                             String p2 = p.trim().replace("#", "");
-                            if (p2.length() >= 3 && p2.length() <= 6) {
-                                stops.add(Color.fromHex(p2));
-                            }
+                            if (p2.length() >= 3 && p2.length() <= 6) stops.add(Color.fromHex(p2));
                         }
                         if (stops.isEmpty()) { i = j; continue; }
 
                         int closeIdx = indexOfIgnoreCase(input, "</GRADIENT:", j);
-                        String endHex = null;
-                        int closeStart = -1, closeEnd = -1;
+                        String endHex = null; int closeStart = -1, closeEnd = -1;
                         if (closeIdx != -1) {
-                            int after = closeIdx + "</GRADIENT:".length();
-                            int k = after;
-                            StringBuilder hx2 = new StringBuilder();
+                            int k = closeIdx + "</GRADIENT:".length(); StringBuilder hx2 = new StringBuilder();
                             while (k < len && isHexChar(input.charAt(k)) && hx2.length() < 6) { hx2.append(input.charAt(k)); k++; }
-                            if (k < len && input.charAt(k) == '>') {
-                                closeStart = closeIdx; closeEnd = k + 1;
-                                endHex = hx2.toString();
-                            }
+                            if (k < len && input.charAt(k) == '>') { closeStart = closeIdx; closeEnd = k + 1; endHex = hx2.toString(); }
                         }
 
                         if (closeStart == -1) {
@@ -231,86 +205,89 @@ public class UniversalColorParser {
                         }
 
                         if (endHex != null && endHex.length() >= 3) {
-                            // Append endHex as final stop if it's not already equal to the last stop
                             Color endColor = Color.fromHex(endHex);
-                            if (stops.isEmpty() || !Objects.equals(stops.get(stops.size()-1), endColor)) {
-                                stops.add(endColor);
-                            }
+                            if (stops.isEmpty() || !Objects.equals(stops.getLast(), endColor)) stops.add(endColor);
                         }
 
                         if (closeStart == -1) {
-                            String body = input.substring(j);
-                            out.addAll(expandMultiStopGradientFromParsed(body, stops, bold, italic, under, strike, obf));
+                            out.addAll(expandMultiStopGradientFromParsed(input.substring(j), stops, bold, italic, under, strike, obf));
                             return mergeSegments(out);
                         } else {
-                            String body = input.substring(j, closeStart);
-                            out.addAll(expandMultiStopGradientFromParsed(body, stops, bold, italic, under, strike, obf));
-                            i = closeEnd;
-                            continue;
+                            out.addAll(expandMultiStopGradientFromParsed(input.substring(j, closeStart), stops, bold, italic, under, strike, obf));
+                            i = closeEnd; continue;
                         }
                     }
                 }
 
-                // <RAINBOW>...
-                if (matchesAtIgnoreCase(input, i, "<RAINBOW", true) || matchesAtIgnoreCase(input, i, "<rainbow", true)) {
-                    int openClose = input.indexOf('>', i); int afterOpen = (openClose == -1) ? i+1 : openClose+1; int close = indexOfIgnoreCase(input, "</RAINBOW>", afterOpen);
-                    if (close == -1) { String body = input.substring(afterOpen); out.addAll(expandRainbowFromParsed(body, bold, italic, under, strike, obf)); return mergeSegments(out); }
-                    String body = input.substring(afterOpen, close); out.addAll(expandRainbowFromParsed(body, bold, italic, under, strike, obf)); i = close + "</RAINBOW>".length(); continue;
+                if (matchesAtIgnoreCase(input, i, "<RAINBOW")) {
+                    int openClose = input.indexOf('>', i);
+                    if (openClose != -1) {
+                        if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
+                        int afterOpen = openClose + 1;
+                        int close = indexOfIgnoreCase(input, "</RAINBOW>", afterOpen);
+                        if (close == -1) {
+                            out.addAll(expandRainbowFromParsed(input.substring(afterOpen), bold, italic, under, strike, obf));
+                            return mergeSegments(out);
+                        }
+                        out.addAll(expandRainbowFromParsed(input.substring(afterOpen, close), bold, italic, under, strike, obf));
+                        i = close + "</RAINBOW>".length(); continue;
+                    }
                 }
 
-                // named mini-message tags like <red>text</red>
                 String tag = readTagName(input, i);
                 if (tag != null) {
-                    String tagLower = tag.toLowerCase();
-                    Character code = NAME_TO_LEGACY.get(tagLower);
+                    String tagLower = tag.toLowerCase(); Character code = NAME_TO_LEGACY.get(tagLower);
+                    boolean isStyleTag = tagLower.equals("b") || tagLower.equals("bold") || tagLower.equals("i") || tagLower.equals("italic") || tagLower.equals("u") || tagLower.equals("underline") || tagLower.equals("s") || tagLower.equals("strikethrough") || tagLower.equals("obf") || tagLower.equals("obfuscated");
+                    boolean isResetTag = tagLower.equals("reset") || tagLower.equals("r");
 
-                    // style HTML-like: <b>, <bold>, <i>, <italic>, <u>, <underline>, <s>, <strikethrough>, <obf>, <obfuscated>
-                    boolean isStyleTag = tagLower.equals("b") || tagLower.equals("bold")
-                            || tagLower.equals("i") || tagLower.equals("italic")
-                            || tagLower.equals("u") || tagLower.equals("underline")
-                            || tagLower.equals("s") || tagLower.equals("strikethrough")
-                            || tagLower.equals("obf") || tagLower.equals("obfuscated");
+                    if (isResetTag) {
+                        int openEnd = input.indexOf('>', i);
+                        if (openEnd == -1) { i++; continue; }
+                        if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
+
+                        int close = indexOfIgnoreCase(input, "</" + tag + ">", openEnd + 1);
+                        if (close == -1) {
+                            curColor = null; bold = false; italic = false; under = false; strike = false; obf = false;
+                            i = openEnd + 1; continue;
+                        }
+                        // Si hay cierre, parsea el contenido con estado limpio (ya que parse() arranca de cero)
+                        out.addAll(parse(input.substring(openEnd + 1, close)));
+                        i = close + tag.length() + 3; continue;
+                    }
 
                     if (isStyleTag) {
                         int openEnd = input.indexOf('>', i);
                         if (openEnd == -1) { i++; continue; }
+                        if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
                         int close = indexOfIgnoreCase(input, "</" + tag + ">", openEnd + 1);
                         if (close == -1) {
-                            String body = input.substring(openEnd + 1);
-                            out.addAll(applyStyleOverrideToParsed(body, tagLower));
+                            out.addAll(applyStyleOverrideToParsed(input.substring(openEnd + 1), tagLower));
                             return mergeSegments(out);
                         }
-                        String body = input.substring(openEnd + 1, close);
-                        out.addAll(applyStyleOverrideToParsed(body, tagLower));
-                        i = close + tag.length() + 3;
-                        continue;
+                        out.addAll(applyStyleOverrideToParsed(input.substring(openEnd + 1, close), tagLower));
+                        i = close + tag.length() + 3; continue;
                     }
 
                     if (code != null) {
                         int openEnd = input.indexOf('>', i);
                         if (openEnd == -1) { i++; continue; }
+                        if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
                         int close = indexOfIgnoreCase(input, "</" + tag + ">", openEnd + 1);
                         if (close == -1) {
-                            String body = input.substring(openEnd + 1);
-                            out.addAll(applyColorOverrideToParsed(body, legacyCodeToColor(code), bold, italic, under, strike, obf));
+                            out.addAll(applyColorOverrideToParsed(input.substring(openEnd + 1), legacyCodeToColor(code), bold, italic, under, strike, obf));
                             return mergeSegments(out);
                         }
-                        String body = input.substring(openEnd + 1, close);
-                        out.addAll(applyColorOverrideToParsed(body, legacyCodeToColor(code), bold, italic, under, strike, obf));
-                        i = close + tag.length() + 3;
-                        continue;
+                        out.addAll(applyColorOverrideToParsed(input.substring(openEnd + 1, close), legacyCodeToColor(code), bold, italic, under, strike, obf));
+                        i = close + tag.length() + 3; continue;
                     }
                 }
             }
-
-            // default char
             cur.append(ch); i++;
         }
         if (!cur.isEmpty()) out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf));
         return mergeSegments(out);
     }
 
-    // parse content and override only styles (bold/italic/underline/strikethrough/obfuscated)
     private static List<Segment> applyStyleOverrideToParsed(String body, String styleTag) {
         List<Segment> parsed = parse(body);
         boolean addBold = styleTag.equals("b") || styleTag.equals("bold");
@@ -321,45 +298,28 @@ public class UniversalColorParser {
 
         List<Segment> out = new ArrayList<>();
         for (Segment s : parsed) {
-            for (int i = 0; i < s.text.length(); i++) {
-                char ch = s.text.charAt(i);
-                out.add(new Segment(String.valueOf(ch),
-                        s.color,
-                        s.gradient,
-                        s.bold || addBold,
-                        s.italic || addItalic,
-                        s.underlined || addUnder,
-                        s.strikethrough || addStrike,
-                        s.obfuscated || addObf));
-            }
+            out.add(new Segment(s.text, s.color, s.gradient, s.bold || addBold, s.italic || addItalic, s.underlined || addUnder, s.strikethrough || addStrike, s.obfuscated || addObf));
         }
         return mergeSegments(out);
     }
 
-
-    // ---------------- parsing helper ----------------
-    private record ParseHexResult(Color color, int newIndex) {
-    }
+    private record ParseHexResult(Color color, int newIndex) {}
 
     private static ParseHexResult tryParseAmpersandHex(String input, int idx) {
         int len = input.length();
         if (idx + 1 >= len) return null;
         char x = input.charAt(idx + 1);
-        if (!(x == 'x' || x == 'X')) return null;
+        if (x != 'x' && x != 'X') return null;
 
         int pos = idx + 2;
-
         if (pos < len && input.charAt(pos) == '&') {
-            int p = pos;
-            StringBuilder hx = new StringBuilder(6);
+            int p = pos; StringBuilder hx = new StringBuilder(6);
             for (int k = 0; k < 6; k++) {
                 if (p >= len || input.charAt(p) != '&') return null;
-                p++; // skip '&'
-                if (p >= len) return null;
+                p++; if (p >= len) return null;
                 char hc = input.charAt(p);
                 if (!isHexChar(hc)) return null;
-                hx.append(hc);
-                p++;
+                hx.append(hc); p++;
             }
             return new ParseHexResult(Color.fromHex(hx.toString()), p);
         }
@@ -369,26 +329,31 @@ public class UniversalColorParser {
             for (int k = 0; k < 6; k++) {
                 if (!isHexChar(input.charAt(pos + k))) { ok = false; break; }
             }
-            if (ok) {
-                String hx = input.substring(pos, pos + 6);
-                return new ParseHexResult(Color.fromHex(hx), pos + 6);
-            }
+            if (ok) return new ParseHexResult(Color.fromHex(input.substring(pos, pos + 6)), pos + 6);
         }
-
         return null;
     }
 
     private static boolean isHexChar(char c) {
         return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
     }
-    @SuppressWarnings("unused")
-    private static boolean matchesAtIgnoreCase(String input, int idx, String prefix, boolean unused) { if (idx+prefix.length()>input.length()) return false; return input.substring(idx, idx+prefix.length()).equalsIgnoreCase(prefix); }
-    private static int indexOfIgnoreCase(String s, String sub, int from) { return s.toLowerCase().indexOf(sub.toLowerCase(), from); }
+
+    private static boolean matchesAtIgnoreCase(String input, int idx, String prefix) {
+        return input.regionMatches(true, idx, prefix, 0, prefix.length());
+    }
+
+    private static int indexOfIgnoreCase(String s, String sub, int from) {
+        if (from < 0) from = 0;
+        int max = s.length() - sub.length();
+        for (int i = from; i <= max; i++) {
+            if (s.regionMatches(true, i, sub, 0, sub.length())) return i;
+        }
+        return -1;
+    }
 
     private static String readTagName(String input, int idx) {
         if (input.charAt(idx) != '<') return null;
-        int j = idx + 1;
-        StringBuilder b = new StringBuilder();
+        int j = idx + 1; StringBuilder b = new StringBuilder();
         while (j < input.length()) {
             char c = input.charAt(j);
             if (Character.isLetter(c) || c == '_' || c == '-') { b.append(c); j++; } else break;
@@ -396,126 +361,127 @@ public class UniversalColorParser {
         return b.isEmpty() ? null : b.toString();
     }
 
-    // parse content and override colors
     private static List<Segment> applyColorOverrideToParsed(String body, Color color, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
         List<Segment> parsed = parse(body);
         List<Segment> out = new ArrayList<>();
         for (Segment s : parsed) {
-            for (int i=0;i<s.text.length();i++) {
-                out.add(new Segment(String.valueOf(s.text.charAt(i)), color, s.bold||bold, s.italic||italic, s.underlined||under, s.strikethrough||strike, s.obfuscated||obf));
-            }
+            out.add(new Segment(s.text, color, s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf));
         }
         return mergeSegments(out);
     }
 
     private static List<Segment> expandMultiStopGradientFromParsed(String body, List<Color> stops, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
-        // parse body preserving styles
         List<Segment> inner = parse(body);
-
-        class CE { char ch; boolean b,i,u,s,k; }
-
+        record CE(char ch, boolean b, boolean i, boolean u, boolean s, boolean k) {}
         List<CE> chars = new ArrayList<>();
         for (Segment s : inner) {
             for (int j = 0; j < s.text.length(); j++) {
-                CE e = new CE();
-                e.ch = s.text.charAt(j);
-                e.b = s.bold || bold;
-                e.i = s.italic || italic;
-                e.u = s.underlined || under;
-                e.s = s.strikethrough || strike;
-                e.k = s.obfuscated || obf;
-                chars.add(e);
+                chars.add(new CE(s.text.charAt(j), s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf));
+            }
+        }
+
+        int n = chars.size();
+        if (n == 0) return Collections.emptyList();
+        int numStops = stops == null ? 0 : stops.size();
+        if (numStops == 0) return Collections.singletonList(new Segment(body, null, bold, italic, under, strike, obf));
+
+        List<Segment> out = new ArrayList<>(n);
+        if (numStops == 1) {
+            Color c = stops.getFirst();
+            for (CE ce : chars) out.add(new Segment(String.valueOf(ce.ch()), c, true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k()));
+            return mergeSegments(out);
+        }
+
+        for (int idx = 0; idx < n; idx++) {
+            double tGlobal = (double) idx / Math.max(1, n - 1);
+            double scaled = tGlobal * (numStops - 1);
+            int left = Math.min((int) Math.floor(scaled), numStops - 2);
+            if (left < 0) left = 0;
+            Color a = stops.get(left), b = stops.get(left + 1);
+            CE ce = chars.get(idx);
+            out.add(new Segment(String.valueOf(ce.ch()), lerpColor(a, b, scaled - left), true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k()));
+        }
+        return mergeSegments(out);
+    }
+
+    private static List<Segment> expandRainbowFromParsed(String body, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
+        List<Segment> inner = parse(body);
+        record CE(char ch, boolean b, boolean i, boolean u, boolean s, boolean k) {}
+        List<CE> chars = new ArrayList<>();
+        for (Segment s : inner) {
+            for (int j = 0; j < s.text.length(); j++) {
+                chars.add(new CE(s.text.charAt(j), s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf));
             }
         }
 
         int n = chars.size();
         if (n == 0) return Collections.emptyList();
 
-        int numStops = stops == null ? 0 : stops.size();
-        if (numStops == 0) {
-            // no stops provided -> fallback: return body as default color (null)
-            return Collections.singletonList(new Segment(body, null, bold, italic, under, strike, obf));
-        }
-
-        List<Segment> out = new ArrayList<>(n);
-
-        if (numStops == 1) {
-            // Single stop: everything gets the same color
-            Color c = stops.get(0);
-            for (int idx = 0; idx < n; idx++) {
-                CE ce = chars.get(idx);
-                out.add(new Segment(String.valueOf(ce.ch), c, true, ce.b, ce.i, ce.u, ce.s, ce.k));
-            }
-            return mergeSegments(out);
-        }
-
-        for (int idx = 0; idx < n; idx++) {
-            double tGlobal = (double) idx / Math.max(1, n - 1);               // in [0,1]
-            double scaled = tGlobal * (numStops - 1);                         // in [0, numStops-1]
-            int left = (int) Math.floor(scaled);
-            if (left < 0) left = 0;
-            if (left > numStops - 2) left = numStops - 2;
-            double localT = scaled - left;                                    // in [0,1]
-            Color a = stops.get(left);
-            Color b = stops.get(left + 1);
-            Color c = lerpColor(a, b, localT);
-            CE ce = chars.get(idx);
-            out.add(new Segment(String.valueOf(ce.ch), c, true, ce.b, ce.i, ce.u, ce.s, ce.k));
-        }
-
-        return mergeSegments(out);
-    }
-
-    @SuppressWarnings("unused")
-    private static List<Segment> expandGradientFromParsed(String body, Color a, Color b, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
-        return expandMultiStopGradientFromParsed(body, Arrays.asList(a,b), bold, italic, under, strike, obf);
-    }
-
-    private static List<Segment> expandRainbowFromParsed(String body, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
-        List<Segment> inner = parse(body);
-        class CE { char ch; boolean b,i,u,s,k; }
-        List<CE> chars = new ArrayList<>();
-        for (Segment s : inner) for (int j=0;j<s.text.length();j++){ CE e=new CE(); e.ch=s.text.charAt(j); e.b=s.bold||bold; e.i=s.italic||italic; e.u=s.underlined||under; e.s=s.strikethrough||strike; e.k=s.obfuscated||obf; chars.add(e); }
-        int n = chars.size(); if (n==0) return Collections.emptyList();
         if (n > MAX_GRADIENT_EXPANSION) {
-            int chunk = (int)Math.ceil((double)n / MAX_GRADIENT_EXPANSION);
+            int chunk = (int) Math.ceil((double) n / MAX_GRADIENT_EXPANSION);
             List<Segment> out = new ArrayList<>();
-            for (int start=0; start<n; start+=chunk) {
-                int end = Math.min(n, start+chunk);
-                double t = (double)start / Math.max(1, n-1);
-                Color c = hsvToRgb(t,1.0,1.0);
-                StringBuilder sb = new StringBuilder(); boolean B=false,O=false,U=false,S=false,K=false;
-                for (int k=start;k<end;k++) { sb.append(chars.get(k).ch); CE ce = chars.get(k); B = B||ce.b; O = O||ce.i; U = U||ce.u; S = S||ce.s; K = K||ce.k; }
+            for (int start = 0; start < n; start += chunk) {
+                int end = Math.min(n, start + chunk);
+                Color c = hsvToRgb((double) start / Math.max(1, n - 1), 1.0, 1.0);
+                StringBuilder sb = new StringBuilder();
+                boolean B = false, O = false, U = false, S = false, K = false;
+                for (int k = start; k < end; k++) {
+                    CE ce = chars.get(k); sb.append(ce.ch()); B |= ce.b(); O |= ce.i(); U |= ce.u(); S |= ce.s(); K |= ce.k();
+                }
                 out.add(new Segment(sb.toString(), c, true, B, O, U, S, K));
             }
             return out;
         }
+
         List<Segment> out = new ArrayList<>();
-        for (int idx=0; idx<n; idx++) {
-            double t = (double)idx / Math.max(1, n-1);
-            Color c = hsvToRgb(t,1.0,1.0); CE ce = chars.get(idx);
-            out.add(new Segment(String.valueOf(ce.ch), c, true, ce.b, ce.i, ce.u, ce.s, ce.k));
+        for (int idx = 0; idx < n; idx++) {
+            CE ce = chars.get(idx);
+            out.add(new Segment(String.valueOf(ce.ch()), hsvToRgb((double) idx / Math.max(1, n - 1), 1.0, 1.0), true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k()));
         }
         return mergeSegments(out);
     }
 
-    // ---------------- Utilities ----------------
     private static Color lerpColor(Color a, Color b, double t) {
-        int r = (int)Math.round(a.r + (b.r - a.r) * t);
-        int g = (int)Math.round(a.g + (b.g - a.g) * t);
-        int bl = (int)Math.round(a.b + (b.b - a.b) * t);
-        return new Color(clamp(r), clamp(g), clamp(bl));
+        return new Color(
+                clamp((int) Math.round(a.r() + (b.r() - a.r()) * t)),
+                clamp((int) Math.round(a.g() + (b.g() - a.g()) * t)),
+                clamp((int) Math.round(a.b() + (b.b() - a.b()) * t))
+        );
     }
+
     private static int clamp(int v) { return Math.max(0, Math.min(255, v)); }
+
     private static Color hsvToRgb(double h, double s, double v) {
-        double r=0,g=0,b=0; int i = (int)Math.floor(h*6); double f = h*6 - i; double p = v*(1-s); double q = v*(1-f*s); double t = v*(1-(1-f)*s);
-        switch (i%6) { case 0: r=v; g=t; b=p; break; case 1: r=q; g=v; b=p; break; case 2: r=p; g=v; b=t; break; case 3: r=p; g=q; b=v; break; case 4: r=t; g=p; b=v; break; default: r=v; g=p; b=q; break; }
-        return new Color((int)Math.round(r*255),(int)Math.round(g*255),(int)Math.round(b*255));
+        int i = (int) Math.floor(h * 6);
+        double f = h * 6 - i, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+        double r = 0, g = 0, b = 0;
+        switch (i % 6) {
+            case 0 -> { r = v; g = t; b = p; }
+            case 1 -> { r = q; g = v; b = p; }
+            case 2 -> { r = p; g = v; b = t; }
+            case 3 -> { r = p; g = q; b = v; }
+            case 4 -> { r = t; g = p; b = v; }
+            default -> { r = v; g = p; b = q; }
+        }
+        return new Color((int) Math.round(r * 255), (int) Math.round(g * 255), (int) Math.round(b * 255));
     }
 
     private static List<Segment> mergeSegments(List<Segment> in) {
-        if (in.isEmpty()) return in; List<Segment> out = new ArrayList<>(); Segment cur = in.get(0);
-        for (int i=1;i<in.size();i++) { Segment s=in.get(i); if (Objects.equals(cur.color,s.color) && cur.bold==s.bold && cur.italic==s.italic && cur.underlined==s.underlined && cur.strikethrough==s.strikethrough && cur.obfuscated==s.obfuscated && cur.gradient==s.gradient) { cur = new Segment(cur.text + s.text, cur.color, cur.gradient, cur.bold, cur.italic, cur.underlined, cur.strikethrough, cur.obfuscated); } else { out.add(cur); cur = s; } } out.add(cur); return out;
+        if (in.isEmpty()) return in;
+        List<Segment> out = new ArrayList<>();
+        Segment cur = in.getFirst();
+        for (int i = 1; i < in.size(); i++) {
+            Segment s = in.get(i);
+            if (Objects.equals(cur.color, s.color) && cur.bold == s.bold && cur.italic == s.italic &&
+                    cur.underlined == s.underlined && cur.strikethrough == s.strikethrough &&
+                    cur.obfuscated == s.obfuscated && cur.gradient == s.gradient) {
+                cur = new Segment(cur.text + s.text, cur.color, cur.gradient, cur.bold, cur.italic, cur.underlined, cur.strikethrough, cur.obfuscated);
+            } else {
+                out.add(cur);
+                cur = s;
+            }
+        }
+        out.add(cur);
+        return out;
     }
-
 }

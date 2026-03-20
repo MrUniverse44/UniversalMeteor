@@ -48,15 +48,16 @@ public class ObjectMapper implements PlatformService {
         converters.put(BigInteger.class, BigInteger::new);
         converters.put(BigDecimal.class, BigDecimal::new);
 
-        collections.put(ArrayList.class, ArrayList::new);
-        collections.put(LinkedList.class, LinkedList::new);
-        collections.put(HashSet.class, HashSet::new);
-        collections.put(Set.class, HashSet::new);
-        collections.put(CopyOnWriteArrayList.class, CopyOnWriteArrayList::new);
-        collections.put(CopyOnWriteArraySet.class, CopyOnWriteArraySet::new);
-        collections.put(TreeSet.class, TreeSet::new);
-        collections.put(List.class, ArrayList::new);
-        collections.put(Collection.class, ArrayList::new);
+        collections.put(ArrayList.class, s -> new ArrayList<>());
+        collections.put(LinkedList.class, s -> new LinkedList<>());
+        collections.put(HashSet.class, s -> new HashSet<>());
+        collections.put(Set.class, s -> new HashSet<>());
+        collections.put(CopyOnWriteArrayList.class, s -> new CopyOnWriteArrayList<>());
+        collections.put(CopyOnWriteArraySet.class, s -> new CopyOnWriteArraySet<>());
+        collections.put(TreeSet.class, s -> new TreeSet<>());
+        collections.put(List.class, s -> new ArrayList<>());
+        collections.put(Collection.class, s -> new ArrayList<>());
+
         collections.put(Map.class, s -> new HashMap<>());
         collections.put(HashMap.class, s -> new HashMap<>());
         collections.put(ConcurrentHashMap.class, concurrentHashMap -> new ConcurrentHashMap<>());
@@ -246,30 +247,57 @@ public class ObjectMapper implements PlatformService {
             return fromDocument(expected, (Document) raw);
         }
 
+        if (expected.isArray() && raw instanceof Collection<?> list) {
+            Class<?> componentType = expected.getComponentType();
+            Object array = Array.newInstance(componentType, list.size());
+            int i = 0;
+            for (Object element : list) {
+                Array.set(array, i++, adaptValue(componentType, componentType, element));
+            }
+            return array;
+        }
+
         if (Collection.class.isAssignableFrom(expected) && raw instanceof Collection<?> list) {
-            Collection<Object> out = (Collection<Object>) collections.getOrDefault(expected, ArrayList::new).apply(list);
+            Collection<Object> out = (Collection<Object>) collections.getOrDefault(expected, s -> new ArrayList<>()).apply(list);
 
             Class<?> elementType = Object.class;
+            Type elementGenericType = Object.class;
+
             if (genericType instanceof ParameterizedType pType) {
                 Type t = pType.getActualTypeArguments()[0];
-                if (t instanceof Class<?>) elementType = (Class<?>) t;
+                elementGenericType = t;
+
+                if (t instanceof Class<?>) {
+                    elementType = (Class<?>) t;
+                } else if (t instanceof ParameterizedType) {
+                    elementType = (Class<?>) ((ParameterizedType) t).getRawType();
+                }
             }
 
             for (Object element : list) {
-                out.add(adaptValue(elementType, elementType, element));
+                out.add(adaptValue(elementType, elementGenericType, element));
             }
             return out;
         }
 
         if (Map.class.isAssignableFrom(expected) && raw instanceof Map<?, ?> map) {
             Map<Object, Object> out = new HashMap<>();
+
             Class<?> valType = Object.class;
+            Type valGenericType = Object.class;
+
             if (genericType instanceof ParameterizedType pType && pType.getActualTypeArguments().length > 1) {
-                if (pType.getActualTypeArguments()[1] instanceof Class<?>)
-                    valType = (Class<?>) pType.getActualTypeArguments()[1];
+                Type t = pType.getActualTypeArguments()[1];
+                valGenericType = t;
+
+                if (t instanceof Class<?>) {
+                    valType = (Class<?>) t;
+                } else if (t instanceof ParameterizedType) {
+                    valType = (Class<?>) ((ParameterizedType) t).getRawType();
+                }
             }
             for (Map.Entry<?, ?> e : map.entrySet()) {
-                out.put(e.getKey(), adaptValue(valType, valType, e.getValue()));
+                out.put(e.getKey(), adaptValue(valType, valGenericType, e.getValue()));
             }
             return out;
         }

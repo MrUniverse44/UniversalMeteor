@@ -141,7 +141,7 @@ public abstract class Subcommand implements PlatformService {
         return "";
     }
 
-    public String getWrongUsage() {
+    public String getWrongUsage(Sender sender) {
         return "";
     }
 }

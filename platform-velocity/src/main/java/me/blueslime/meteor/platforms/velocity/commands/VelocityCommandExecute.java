@@ -101,7 +101,7 @@ public class VelocityCommandExecute implements SimpleCommand, PlatformService {
                 try {
                     parsed.add(handler.parse(input));
                 } catch (Exception e) {
-                    if (cmd.getWrongUsage() != null) sender.send(cmd.getWrongUsage());
+                    if (cmd.getWrongUsage(sender) != null) sender.send(cmd.getWrongUsage(sender));
                     throw new IllegalArgumentException(e.getMessage());
                 }
             }
