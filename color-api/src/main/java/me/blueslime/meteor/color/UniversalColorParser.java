@@ -7,15 +7,33 @@ public class UniversalColorParser {
     private static final int MAX_SEGMENTS = 50_000;
     private static final int MAX_GRADIENT_EXPANSION = 4096;
 
+    public enum ClickAction { RUN_COMMAND, COPY_TO_CLIPBOARD, SUGGEST_COMMAND, OPEN_URL }
+
     public static class Segment {
         public final String text;
         public final Color color;
         public final boolean gradient;
         public final boolean bold, italic, underlined, strikethrough, obfuscated;
+        public final ClickAction clickAction;
+        public final String clickValue;
+        public final String hoverValue;
+
+        public Segment(String text, Color color, boolean gradient, boolean bold, boolean italic, boolean underlined, boolean strikethrough, boolean obfuscated, ClickAction clickAction, String clickValue, String hoverValue) {
+            this.text = text;
+            this.color = color;
+            this.gradient = gradient;
+            this.bold = bold;
+            this.italic = italic;
+            this.underlined = underlined;
+            this.strikethrough = strikethrough;
+            this.obfuscated = obfuscated;
+            this.clickAction = clickAction;
+            this.clickValue = clickValue;
+            this.hoverValue = hoverValue;
+        }
 
         public Segment(String text, Color color, boolean gradient, boolean bold, boolean italic, boolean underlined, boolean strikethrough, boolean obfuscated) {
-            this.text = text;
-            this.color = color; this.gradient = gradient; this.bold = bold; this.italic = italic; this.underlined = underlined; this.strikethrough = strikethrough; this.obfuscated = obfuscated;
+            this(text, color, gradient, bold, italic, underlined, strikethrough, obfuscated, null, null, null);
         }
 
         public Segment(String text, Color color, boolean bold, boolean italic, boolean underlined, boolean strikethrough, boolean obfuscated) {
@@ -27,7 +45,11 @@ public class UniversalColorParser {
         }
 
         public String toString() {
-            return "[%s %s]%s".formatted(color == null ? "null" : color.toHex(), (bold ? "B" : "") + (italic ? "I" : "") + (underlined ? "U" : "") + (strikethrough ? "S" : ""), (text == null ? "" : text));
+            String base = "[%s %s]%s".formatted(color == null ? "null" : color.toHex(), (bold ? "B" : "") + (italic ? "I" : "") + (underlined ? "U" : "") + (strikethrough ? "S" : ""), (text == null ? "" : text));
+            if (clickAction != null || hoverValue != null) {
+                base += " {click=" + clickAction + ", hover=" + (hoverValue != null) + "}";
+            }
+            return base;
         }
     }
 
@@ -99,12 +121,14 @@ public class UniversalColorParser {
                 ParseHexResult ph = tryParseAmpersandHex(input, i);
                 if (ph != null) {
                     if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
-                    curColor = ph.color; i = ph.newIndex; continue;
+                    curColor = ph.color;
+                    i = ph.newIndex; continue;
                 }
 
                 if (i + 1 < len && input.charAt(i + 1) == '#') {
                     if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
-                    int j = i + 2; StringBuilder hx = new StringBuilder();
+                    int j = i + 2;
+                    StringBuilder hx = new StringBuilder();
                     while (j < len && isHexChar(input.charAt(j)) && hx.length() < 6) { hx.append(input.charAt(j)); j++; }
                     if (hx.length() >= 3) { curColor = Color.fromHex(hx.toString()); i = j; continue; }
                 }
@@ -116,13 +140,15 @@ public class UniversalColorParser {
                     Character code = NAME_TO_LEGACY.get(name);
                     if (code != null) {
                         if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
-                        curColor = legacyCodeToColor(code); i = j + 1; continue;
+                        curColor = legacyCodeToColor(code);
+                        i = j + 1; continue;
                     }
                 }
 
                 if (i + 1 < len) {
                     if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
-                    char code = Character.toLowerCase(input.charAt(i + 1)); i += 2;
+                    char code = Character.toLowerCase(input.charAt(i + 1));
+                    i += 2;
                     switch (code) {
                         case 'k' -> obf = true;
                         case 'l' -> bold = true;
@@ -130,12 +156,14 @@ public class UniversalColorParser {
                         case 'n' -> under = true;
                         case 'o' -> italic = true;
                         case 'r' -> {
-                            curColor = null; bold = false; italic = false; under = false; strike = false; obf = false;
+                            curColor = null;
+                            bold = false; italic = false; under = false; strike = false; obf = false;
                         }
                         default -> {
                             Color c = legacyCodeToColor(code);
                             if (c != null) {
-                                curColor = c; bold = false; italic = false; under = false; strike = false; obf = false;
+                                curColor = c;
+                                bold = false; italic = false; under = false; strike = false; obf = false;
                             } else {
                                 cur.append('&').append(code);
                             }
@@ -148,8 +176,65 @@ public class UniversalColorParser {
             }
 
             if (ch == '<') {
+                if (matchesAtIgnoreCase(input, i, "<click:")) {
+                    int j = i + "<click:".length();
+                    int colon2 = input.indexOf(':', j);
+                    int closeBracket = findTagClose(input, j);
+
+                    if (colon2 != -1 && colon2 < closeBracket) {
+                        String actionStr = input.substring(j, colon2).toUpperCase();
+                        ClickAction action = null;
+                        try { action = ClickAction.valueOf(actionStr); } catch (IllegalArgumentException ignored) {}
+
+                        if (action != null) {
+                            String valueStr = input.substring(colon2 + 1, closeBracket);
+                            if ((valueStr.startsWith("'") && valueStr.endsWith("'")) || (valueStr.startsWith("\"") && valueStr.endsWith("\""))) {
+                                valueStr = valueStr.substring(1, valueStr.length() - 1);
+                            }
+
+                            if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
+
+                            int afterOpen = closeBracket + 1;
+                            int closeTag = indexOfIgnoreCase(input, "</click>", afterOpen);
+                            if (closeTag == -1) {
+                                out.addAll(applyClickOverrideToParsed(input.substring(afterOpen), action, valueStr, bold, italic, under, strike, obf));
+                                return mergeSegments(out);
+                            } else {
+                                out.addAll(applyClickOverrideToParsed(input.substring(afterOpen, closeTag), action, valueStr, bold, italic, under, strike, obf));
+                                i = closeTag + "</click>".length();
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                if (matchesAtIgnoreCase(input, i, "<hover:")) {
+                    int j = i + "<hover:".length();
+                    int closeBracket = findTagClose(input, j);
+                    if (closeBracket != -1) {
+                        String hoverStr = input.substring(j, closeBracket);
+                        if ((hoverStr.startsWith("'") && hoverStr.endsWith("'")) || (hoverStr.startsWith("\"") && hoverStr.endsWith("\""))) {
+                            hoverStr = hoverStr.substring(1, hoverStr.length() - 1);
+                        }
+
+                        if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
+
+                        int afterOpen = closeBracket + 1;
+                        int closeTag = indexOfIgnoreCase(input, "</hover>", afterOpen);
+                        if (closeTag == -1) {
+                            out.addAll(applyHoverOverrideToParsed(input.substring(afterOpen), hoverStr, bold, italic, under, strike, obf));
+                            return mergeSegments(out);
+                        } else {
+                            out.addAll(applyHoverOverrideToParsed(input.substring(afterOpen, closeTag), hoverStr, bold, italic, under, strike, obf));
+                            i = closeTag + "</hover>".length();
+                            continue;
+                        }
+                    }
+                }
+
                 if (i + 1 < len && input.charAt(i + 1) == '#') {
-                    int j = i + 2; StringBuilder hx = new StringBuilder();
+                    int j = i + 2;
+                    StringBuilder hx = new StringBuilder();
                     while (j < len && isHexChar(input.charAt(j)) && hx.length() < 6) { hx.append(input.charAt(j)); j++; }
                     if (j < len && input.charAt(j) == '>') {
                         if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
@@ -178,7 +263,8 @@ public class UniversalColorParser {
                 }
 
                 if (matchesAtIgnoreCase(input, i, "<GRADIENT:")) {
-                    int colon = i + "<GRADIENT:".length(); int j = colon; StringBuilder token = new StringBuilder();
+                    int colon = i + "<GRADIENT:".length();
+                    int j = colon; StringBuilder token = new StringBuilder();
                     while (j < len && input.charAt(j) != '>') { token.append(input.charAt(j)); j++; }
                     if (j < len && input.charAt(j) == '>') {
                         if (!cur.isEmpty()) { out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf)); cur.setLength(0); segmentsCreated++; }
@@ -194,7 +280,8 @@ public class UniversalColorParser {
                         int closeIdx = indexOfIgnoreCase(input, "</GRADIENT:", j);
                         String endHex = null; int closeStart = -1, closeEnd = -1;
                         if (closeIdx != -1) {
-                            int k = closeIdx + "</GRADIENT:".length(); StringBuilder hx2 = new StringBuilder();
+                            int k = closeIdx + "</GRADIENT:".length();
+                            StringBuilder hx2 = new StringBuilder();
                             while (k < len && isHexChar(input.charAt(k)) && hx2.length() < 6) { hx2.append(input.charAt(k)); k++; }
                             if (k < len && input.charAt(k) == '>') { closeStart = closeIdx; closeEnd = k + 1; endHex = hx2.toString(); }
                         }
@@ -236,10 +323,11 @@ public class UniversalColorParser {
 
                 String tag = readTagName(input, i);
                 if (tag != null) {
-                    String tagLower = tag.toLowerCase(); Character code = NAME_TO_LEGACY.get(tagLower);
-                    boolean isStyleTag = tagLower.equals("b") || tagLower.equals("bold") || tagLower.equals("i") || tagLower.equals("italic") || tagLower.equals("u") || tagLower.equals("underline") || tagLower.equals("s") || tagLower.equals("strikethrough") || tagLower.equals("obf") || tagLower.equals("obfuscated");
+                    String tagLower = tag.toLowerCase();
+                    Character code = NAME_TO_LEGACY.get(tagLower);
+                    boolean isStyleTag = tagLower.equals("b") || tagLower.equals("bold") || tagLower.equals("i") || tagLower.equals("italic") || tagLower.equals("u") || tagLower.equals("underline") ||
+                            tagLower.equals("s") || tagLower.equals("strikethrough") || tagLower.equals("obf") || tagLower.equals("obfuscated");
                     boolean isResetTag = tagLower.equals("reset") || tagLower.equals("r");
-
                     if (isResetTag) {
                         int openEnd = input.indexOf('>', i);
                         if (openEnd == -1) { i++; continue; }
@@ -247,10 +335,11 @@ public class UniversalColorParser {
 
                         int close = indexOfIgnoreCase(input, "</" + tag + ">", openEnd + 1);
                         if (close == -1) {
-                            curColor = null; bold = false; italic = false; under = false; strike = false; obf = false;
-                            i = openEnd + 1; continue;
+                            curColor = null;
+                            bold = false; italic = false; under = false; strike = false; obf = false;
+                            i = openEnd + 1;
+                            continue;
                         }
-                        // Si hay cierre, parsea el contenido con estado limpio (ya que parse() arranca de cero)
                         out.addAll(parse(input.substring(openEnd + 1, close)));
                         i = close + tag.length() + 3; continue;
                     }
@@ -282,9 +371,39 @@ public class UniversalColorParser {
                     }
                 }
             }
-            cur.append(ch); i++;
+            cur.append(ch);
+            i++;
         }
         if (!cur.isEmpty()) out.add(new Segment(cur.toString(), curColor, false, bold, italic, under, strike, obf));
+        return mergeSegments(out);
+    }
+
+    private static int findTagClose(String input, int start) {
+        boolean inSingle = false, inDouble = false;
+        for (int i = start; i < input.length(); i++) {
+            char c = input.charAt(i);
+            if (c == '\'' && !inDouble) inSingle = !inSingle;
+            else if (c == '"' && !inSingle) inDouble = !inDouble;
+            else if (c == '>' && !inSingle && !inDouble) return i;
+        }
+        return -1;
+    }
+
+    private static List<Segment> applyClickOverrideToParsed(String body, ClickAction action, String value, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
+        List<Segment> parsed = parse(body);
+        List<Segment> out = new ArrayList<>();
+        for (Segment s : parsed) {
+            out.add(new Segment(s.text, s.color, s.gradient, s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf, action, value, s.hoverValue));
+        }
+        return mergeSegments(out);
+    }
+
+    private static List<Segment> applyHoverOverrideToParsed(String body, String hoverValue, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
+        List<Segment> parsed = parse(body);
+        List<Segment> out = new ArrayList<>();
+        for (Segment s : parsed) {
+            out.add(new Segment(s.text, s.color, s.gradient, s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf, s.clickAction, s.clickValue, hoverValue));
+        }
         return mergeSegments(out);
     }
 
@@ -298,12 +417,26 @@ public class UniversalColorParser {
 
         List<Segment> out = new ArrayList<>();
         for (Segment s : parsed) {
-            out.add(new Segment(s.text, s.color, s.gradient, s.bold || addBold, s.italic || addItalic, s.underlined || addUnder, s.strikethrough || addStrike, s.obfuscated || addObf));
+            out.add(new Segment(s.text, s.color, s.gradient, s.bold || addBold, s.italic || addItalic, s.underlined || addUnder, s.strikethrough || addStrike, s.obfuscated || addObf, s.clickAction, s.clickValue, s.hoverValue));
         }
         return mergeSegments(out);
     }
 
     private record ParseHexResult(Color color, int newIndex) {}
+
+    public static String stripColor(String message) {
+        if (message == null || message.isEmpty()) return message;
+
+        StringBuilder stripped = new StringBuilder();
+        for (UniversalColorParser.Segment segment : UniversalColorParser.parse(message)) {
+            if (segment.text != null) {
+                stripped.append(segment.text);
+            }
+        }
+
+        return stripped.toString();
+    }
+
 
     private static ParseHexResult tryParseAmpersandHex(String input, int idx) {
         int len = input.length();
@@ -313,7 +446,8 @@ public class UniversalColorParser {
 
         int pos = idx + 2;
         if (pos < len && input.charAt(pos) == '&') {
-            int p = pos; StringBuilder hx = new StringBuilder(6);
+            int p = pos;
+            StringBuilder hx = new StringBuilder(6);
             for (int k = 0; k < 6; k++) {
                 if (p >= len || input.charAt(p) != '&') return null;
                 p++; if (p >= len) return null;
@@ -365,30 +499,30 @@ public class UniversalColorParser {
         List<Segment> parsed = parse(body);
         List<Segment> out = new ArrayList<>();
         for (Segment s : parsed) {
-            out.add(new Segment(s.text, color, s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf));
+            out.add(new Segment(s.text, color, s.gradient, s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf, s.clickAction, s.clickValue, s.hoverValue));
         }
         return mergeSegments(out);
     }
 
     private static List<Segment> expandMultiStopGradientFromParsed(String body, List<Color> stops, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
         List<Segment> inner = parse(body);
-        record CE(char ch, boolean b, boolean i, boolean u, boolean s, boolean k) {}
+        record CE(char ch, boolean b, boolean i, boolean u, boolean s, boolean k, ClickAction ca, String cv, String hv) {}
         List<CE> chars = new ArrayList<>();
         for (Segment s : inner) {
             for (int j = 0; j < s.text.length(); j++) {
-                chars.add(new CE(s.text.charAt(j), s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf));
+                chars.add(new CE(s.text.charAt(j), s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf, s.clickAction, s.clickValue, s.hoverValue));
             }
         }
 
         int n = chars.size();
         if (n == 0) return Collections.emptyList();
         int numStops = stops == null ? 0 : stops.size();
-        if (numStops == 0) return Collections.singletonList(new Segment(body, null, bold, italic, under, strike, obf));
+        if (numStops == 0) return Collections.singletonList(new Segment(body, null, false, bold, italic, under, strike, obf));
 
         List<Segment> out = new ArrayList<>(n);
         if (numStops == 1) {
             Color c = stops.getFirst();
-            for (CE ce : chars) out.add(new Segment(String.valueOf(ce.ch()), c, true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k()));
+            for (CE ce : chars) out.add(new Segment(String.valueOf(ce.ch()), c, true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k(), ce.ca(), ce.cv(), ce.hv()));
             return mergeSegments(out);
         }
 
@@ -399,18 +533,18 @@ public class UniversalColorParser {
             if (left < 0) left = 0;
             Color a = stops.get(left), b = stops.get(left + 1);
             CE ce = chars.get(idx);
-            out.add(new Segment(String.valueOf(ce.ch()), lerpColor(a, b, scaled - left), true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k()));
+            out.add(new Segment(String.valueOf(ce.ch()), lerpColor(a, b, scaled - left), true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k(), ce.ca(), ce.cv(), ce.hv()));
         }
         return mergeSegments(out);
     }
 
     private static List<Segment> expandRainbowFromParsed(String body, boolean bold, boolean italic, boolean under, boolean strike, boolean obf) {
         List<Segment> inner = parse(body);
-        record CE(char ch, boolean b, boolean i, boolean u, boolean s, boolean k) {}
+        record CE(char ch, boolean b, boolean i, boolean u, boolean s, boolean k, ClickAction ca, String cv, String hv) {}
         List<CE> chars = new ArrayList<>();
         for (Segment s : inner) {
             for (int j = 0; j < s.text.length(); j++) {
-                chars.add(new CE(s.text.charAt(j), s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf));
+                chars.add(new CE(s.text.charAt(j), s.bold || bold, s.italic || italic, s.underlined || under, s.strikethrough || strike, s.obfuscated || obf, s.clickAction, s.clickValue, s.hoverValue));
             }
         }
 
@@ -425,10 +559,15 @@ public class UniversalColorParser {
                 Color c = hsvToRgb((double) start / Math.max(1, n - 1), 1.0, 1.0);
                 StringBuilder sb = new StringBuilder();
                 boolean B = false, O = false, U = false, S = false, K = false;
+                ClickAction CA = chars.get(start).ca();
+                String CV = chars.get(start).cv();
+                String HV = chars.get(start).hv();
+
                 for (int k = start; k < end; k++) {
-                    CE ce = chars.get(k); sb.append(ce.ch()); B |= ce.b(); O |= ce.i(); U |= ce.u(); S |= ce.s(); K |= ce.k();
+                    CE ce = chars.get(k);
+                    sb.append(ce.ch()); B |= ce.b(); O |= ce.i(); U |= ce.u(); S |= ce.s(); K |= ce.k();
                 }
-                out.add(new Segment(sb.toString(), c, true, B, O, U, S, K));
+                out.add(new Segment(sb.toString(), c, true, B, O, U, S, K, CA, CV, HV));
             }
             return out;
         }
@@ -436,7 +575,7 @@ public class UniversalColorParser {
         List<Segment> out = new ArrayList<>();
         for (int idx = 0; idx < n; idx++) {
             CE ce = chars.get(idx);
-            out.add(new Segment(String.valueOf(ce.ch()), hsvToRgb((double) idx / Math.max(1, n - 1), 1.0, 1.0), true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k()));
+            out.add(new Segment(String.valueOf(ce.ch()), hsvToRgb((double) idx / Math.max(1, n - 1), 1.0, 1.0), true, ce.b(), ce.i(), ce.u(), ce.s(), ce.k(), ce.ca(), ce.cv(), ce.hv()));
         }
         return mergeSegments(out);
     }
@@ -474,8 +613,11 @@ public class UniversalColorParser {
             Segment s = in.get(i);
             if (Objects.equals(cur.color, s.color) && cur.bold == s.bold && cur.italic == s.italic &&
                     cur.underlined == s.underlined && cur.strikethrough == s.strikethrough &&
-                    cur.obfuscated == s.obfuscated && cur.gradient == s.gradient) {
-                cur = new Segment(cur.text + s.text, cur.color, cur.gradient, cur.bold, cur.italic, cur.underlined, cur.strikethrough, cur.obfuscated);
+                    cur.obfuscated == s.obfuscated && cur.gradient == s.gradient &&
+                    cur.clickAction == s.clickAction && Objects.equals(cur.clickValue, s.clickValue) &&
+                    Objects.equals(cur.hoverValue, s.hoverValue)) {
+
+                cur = new Segment(cur.text + s.text, cur.color, cur.gradient, cur.bold, cur.italic, cur.underlined, cur.strikethrough, cur.obfuscated, cur.clickAction, cur.clickValue, cur.hoverValue);
             } else {
                 out.add(cur);
                 cur = s;

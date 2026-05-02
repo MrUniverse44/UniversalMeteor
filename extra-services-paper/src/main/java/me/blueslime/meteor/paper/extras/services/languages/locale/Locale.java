@@ -47,11 +47,7 @@ public class Locale {
 
     @Override
     public String toString() {
-        if (hasCountry()) {
-            return lang + "_" + country;
-        } else {
-            return lang;
-        }
+        return lang;
     }
 
     public static Locale fromString(String localeString) throws InvalidLocaleException {

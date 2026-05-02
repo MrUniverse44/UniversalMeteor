@@ -29,6 +29,27 @@ public interface Implementer {
     }
 
     /**
+     * Calls the {@link Implements#isImplemented(Class)}
+     * @param clazz to search
+     * @return result of the search
+     * @param <T> instance type
+     */
+    default <T> boolean isImplemented(Class<T> clazz) {
+        return Implements.isImplemented(clazz);
+    }
+
+    /**
+     * Calls the {@link Implements#isImplemented(Class, String)}
+     * @param clazz to search
+     * @param identifier for this search
+     * @return result of the search
+     * @param <T> instance type
+     */
+    default <T> boolean isImplemented(Class<T> clazz, String identifier) {
+        return Implements.isImplemented(clazz, identifier);
+    }
+
+    /**
      * register implement set, collection, map or list
      * @param type of the set parameter
      * @param values for this set

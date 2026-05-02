@@ -3,6 +3,7 @@ package me.blueslime.meteor.platforms.bungeecord.commands;
 import me.blueslime.meteor.platforms.api.commands.*;
 import me.blueslime.meteor.platforms.api.entity.Sender;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
+import me.blueslime.meteor.platforms.api.utils.CommandUtils;
 import me.blueslime.meteor.platforms.bungeecord.sender.BungeeSender;
 import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.plugin.Command;
@@ -34,7 +35,9 @@ public class BungeeCommandExecute extends Command implements TabExecutor, Platfo
         Sender sender = BungeeSender.build(bungeeSender);
 
         try {
-            processExecution(sender, rootCommand, args);
+            String[] processedArgs = CommandUtils.groupQuotedArguments(args);
+
+            processExecution(sender, rootCommand, processedArgs);
         } catch (IllegalArgumentException ignored) {
             // Already sent a message
         } catch (Exception e) {
@@ -79,7 +82,6 @@ public class BungeeCommandExecute extends Command implements TabExecutor, Platfo
         List<Object> parsed = new ArrayList<>();
 
         long required = expected.stream().filter(a -> a.getArgType() == ArgumentType.NEEDED).count();
-
         if (rawArgs.length < required) {
             if (cmd.getUsage() != null) sender.send(cmd.getUsage());
             throw new IllegalArgumentException("Not enough arguments");
@@ -87,7 +89,6 @@ public class BungeeCommandExecute extends Command implements TabExecutor, Platfo
 
         for (int i = 0; i < expected.size(); i++) {
             Argument<?> def = expected.get(i);
-
             if (i >= rawArgs.length) {
                 if (def.getArgType() == ArgumentType.OPTIONAL) {
                     parsed.add(null);
@@ -96,6 +97,15 @@ public class BungeeCommandExecute extends Command implements TabExecutor, Platfo
             }
 
             String input = rawArgs[i];
+
+            if (i == expected.size() - 1 && def.getType().equals(String.class)) {
+                StringBuilder builder = new StringBuilder(input);
+                for (int j = i + 1; j < rawArgs.length; j++) {
+                    builder.append(" ").append(rawArgs[j]);
+                }
+                input = builder.toString();
+            }
+
             ArgumentTypeHandler<?> handler = registry.getTypeHandler(def.getType());
 
             if (handler == null) {

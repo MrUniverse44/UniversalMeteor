@@ -1,6 +1,6 @@
 package me.blueslime.meteor.platforms.paper.adapter;
 
-import me.blueslime.meteor.color.renders.VelocitySpongeRenderer;
+import me.blueslime.meteor.color.renders.ComponentRenderer;
 import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.Platforms;
 import me.blueslime.meteor.platforms.api.adapter.PlatformAdapterBuilder;
@@ -45,7 +45,7 @@ public class PaperPlatformAdapterBuilder<P extends PlatformPlugin> extends Platf
                     ConsoleCommandSender console = pluginInstance.getServer().getConsoleSender();
 
                     console.sendMessage(
-                        VelocitySpongeRenderer.create(message)
+                        ComponentRenderer.translate(message)
                     );
                 }
             )

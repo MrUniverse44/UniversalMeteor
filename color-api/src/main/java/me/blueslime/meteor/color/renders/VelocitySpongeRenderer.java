@@ -2,6 +2,8 @@ package me.blueslime.meteor.color.renders;
 
 import me.blueslime.meteor.color.UniversalColorParser;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
@@ -9,6 +11,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * @deprecated Replace it with {@link ComponentRenderer}
+ */
+@Deprecated(since = "3.1.13-UMR", forRemoval = true)
 public class VelocitySpongeRenderer implements Renderer<net.kyori.adventure.text.Component> {
 
     private static final VelocitySpongeRenderer instance = new VelocitySpongeRenderer();
@@ -29,7 +35,7 @@ public class VelocitySpongeRenderer implements Renderer<net.kyori.adventure.text
         return instance.render(segments);
     }
 
-    public static List<Component> translate(Collection<String> collection) {
+    public static List<Component> translateList(Collection<String> collection) {
         return collection.stream().map(VelocitySpongeRenderer::translate).collect(Collectors.toList());
     }
 
@@ -47,8 +53,33 @@ public class VelocitySpongeRenderer implements Renderer<net.kyori.adventure.text
             part = part.decoration(TextDecoration.STRIKETHROUGH, s.strikethrough);
             part = part.decoration(TextDecoration.OBFUSCATED, s.obfuscated);
 
+            if (s.clickAction != null && s.clickValue != null) {
+                ClickEvent.Action adventureAction = switch (s.clickAction) {
+                    case RUN_COMMAND -> ClickEvent.Action.RUN_COMMAND;
+                    case SUGGEST_COMMAND -> ClickEvent.Action.SUGGEST_COMMAND;
+                    case OPEN_URL -> ClickEvent.Action.OPEN_URL;
+                    case COPY_TO_CLIPBOARD -> ClickEvent.Action.COPY_TO_CLIPBOARD;
+                };
+                part = part.clickEvent(
+                    ClickEvent.clickEvent(
+                        adventureAction,
+                        ClickEvent.Payload.string(s.clickValue)
+                    )
+                );
+            }
+
+            if (s.hoverValue != null) {
+                Component hoverComponent = translate(s.hoverValue);
+                part = part.hoverEvent(HoverEvent.showText(hoverComponent));
+            }
+
             result = result.append(part);
         }
         return result;
     }
+
+    public static String stripColor(String message) {
+        return UniversalColorParser.stripColor(message);
+    }
+
 }

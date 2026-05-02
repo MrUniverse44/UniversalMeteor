@@ -151,6 +151,29 @@ public class DefaultConfigurationHandle extends ConfigurationHandle {
     }
 
     /**
+     * Retrieves along from the specified path.
+     *
+     * @param path The path to retrieve the double from.
+     * @return The double value. Returns 0 if not found.
+     */
+    @Override
+    public double getDouble(String path) {
+        return configuration.getDouble(path);
+    }
+
+    /**
+     * Retrieves along from the specified path with a fallback value.
+     *
+     * @param path The path to retrieve the double from.
+     * @param def  The default value to return if the path does not exist.
+     * @return The double value found, or the default value.
+     */
+    @Override
+    public double getDouble(String path, double def) {
+        return configuration.getDouble(path, def);
+    }
+
+    /**
      * Retrieves the boolean status of a path.
      *
      * @param path The path to check.

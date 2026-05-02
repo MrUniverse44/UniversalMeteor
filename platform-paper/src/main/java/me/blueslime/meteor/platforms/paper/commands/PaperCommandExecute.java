@@ -4,6 +4,7 @@ import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.commands.*;
 import me.blueslime.meteor.platforms.api.entity.Sender;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.utils.CommandUtils;
 import me.blueslime.meteor.platforms.paper.sender.PaperSender;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
@@ -30,7 +31,9 @@ public class PaperCommandExecute extends org.bukkit.command.Command {
         Sender sender = PaperSender.build(bukkitSender);
 
         try {
-            processExecution(sender, rootCommand, args, bukkitSender);
+            String[] processedArgs = CommandUtils.groupQuotedArguments(args);
+
+            processExecution(sender, rootCommand, processedArgs, bukkitSender);
         } catch (Exception e) {
             if (e instanceof IllegalArgumentException) {
                 return true;
@@ -105,6 +108,15 @@ public class PaperCommandExecute extends org.bukkit.command.Command {
             }
 
             String input = rawArgs[i];
+
+            if (i == expectedArgs.size() - 1 && definition.getType().equals(String.class)) {
+                StringBuilder builder = new StringBuilder(input);
+                for (int j = i + 1; j < rawArgs.length; j++) {
+                    builder.append(" ").append(rawArgs[j]);
+                }
+                input = builder.toString();
+            }
+
             ArgumentTypeHandler<?> handler = registry.getTypeHandler(definition.getType());
 
             if (handler == null) {

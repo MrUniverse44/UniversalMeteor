@@ -4,7 +4,6 @@ import me.blueslime.meteor.paper.extras.services.languages.LanguageService;
 import me.blueslime.meteor.paper.extras.services.languages.locale.InvalidLocaleException;
 import me.blueslime.meteor.paper.extras.services.languages.locale.Locale;
 import me.blueslime.meteor.platforms.api.configuration.handle.ConfigurationHandle;
-import me.blueslime.meteor.platforms.api.configuration.handle.DefaultConfigurationHandle;
 import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 import org.bukkit.entity.Player;
 
@@ -31,14 +30,28 @@ public class DynamicLanguageService implements LanguageService {
     private final Method playerLocale = PluginConsumer.ofUnchecked(() -> Player.class.getMethod("getLocale"), e -> {}, () -> null);
 
     /* Can't found method data of nothing xD */
-    private boolean languageMethod = true;
+    private boolean languageMethod = false;
 
-    private final String fallbackLocale;
+    private Locale fallbackLocaleObject;
+    private String fallbackLocale;
     private final File localesDir;
 
-    public DynamicLanguageService(File directory, String... supportedLocales) {
-        this.localesDir = new File(directory, "i18n");
+    public DynamicLanguageService(String... supportedLocales) {
+        this.localesDir = getFileOfDirectory("i18n");
+        if (supportedLocales.length == 0) {
+            this.fallbackLocaleObject = Locale.fromString("en_US");
+            this.fallbackLocale = "en_US";
+
+            if (!localesDir.exists() && !localesDir.mkdirs()) {
+                getLogger().error("Can't create i18n folder");
+                return;
+            }
+
+            reloadLocales();
+            return;
+        }
         this.fallbackLocale = supportedLocales[0];
+        this.fallbackLocaleObject = Locale.fromString(fallbackLocale);
 
         if (!localesDir.exists() && !localesDir.mkdirs()) {
             getLogger().error("Can't create i18n folder");
@@ -86,6 +99,11 @@ public class DynamicLanguageService implements LanguageService {
         reloadLocales();
     }
 
+    public void updateFallbackLocale(String locale) {
+        this.fallbackLocaleObject = Locale.fromString(locale);
+        this.fallbackLocale = fallbackLocaleObject.getLanguage() + "_" + fallbackLocaleObject.getCountry();
+    }
+
     /**
      * Reload the language files from the "lang" folder.
      */
@@ -109,7 +127,7 @@ public class DynamicLanguageService implements LanguageService {
                 continue;
             }
 
-            final ConfigurationHandle data = new DefaultConfigurationHandle(file, "/i18n/" + localeName + ".yml");
+            final ConfigurationHandle data = getPlugin().getConfigurationProvider().load(file, "/i18n/" + localeName + ".yml");
 
             localeMap.put(locale, data);
         }
@@ -123,7 +141,7 @@ public class DynamicLanguageService implements LanguageService {
             return;
         }
 
-        fallbackLocaleConfiguration = new DefaultConfigurationHandle(new File(localesDir, fallbackLocale), resource);
+        fallbackLocaleConfiguration = getPlugin().getConfigurationProvider().load(new File(localesDir, fallbackLocale), resource);
     }
 
     @Override
@@ -166,11 +184,20 @@ public class DynamicLanguageService implements LanguageService {
                         final Object spigot = playerSpigotMethod.invoke(player);
                         return (String) spigotLocale.invoke(spigot);
                     },
-                    e -> languageMethod = true,
-                    () -> fallbackLocale
+                    e -> {},
+                    () -> PluginConsumer.ofUnchecked(
+                        () -> player.locale().getLanguage() + "_" + player.locale().getCountry(),
+                        e -> languageMethod = true,
+                        () -> fallbackLocale
+                    )
                 )
             );
         }
         return fallbackLocale;
+    }
+
+    @Override
+    public Locale getFallbackLocale() {
+        return fallbackLocaleObject;
     }
 }

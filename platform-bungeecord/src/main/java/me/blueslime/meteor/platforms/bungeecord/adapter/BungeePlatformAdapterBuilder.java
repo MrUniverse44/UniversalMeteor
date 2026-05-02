@@ -1,5 +1,6 @@
 package me.blueslime.meteor.platforms.bungeecord.adapter;
 
+import me.blueslime.meteor.color.renders.BungeeRenderer;
 import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.Platforms;
 import me.blueslime.meteor.platforms.api.adapter.PlatformAdapterBuilder;
@@ -12,7 +13,6 @@ import me.blueslime.meteor.platforms.bungeecord.data.BungeePluginData;
 import me.blueslime.meteor.platforms.bungeecord.events.BungeePlatformEvents;
 import me.blueslime.meteor.platforms.bungeecord.tasks.BungeePlatformTasks;
 import net.md_5.bungee.api.CommandSender;
-import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.plugin.Plugin;
 
 import java.io.File;
@@ -41,7 +41,7 @@ public class BungeePlatformAdapterBuilder<P extends PlatformPlugin> extends Plat
                     CommandSender console = pluginInstance.getProxy().getConsole();
 
                     console.sendMessage(
-                        new TextComponent(message)
+                        BungeeRenderer.translateAsSingle(message)
                     );
                 }
             )

@@ -3,7 +3,7 @@ package me.blueslime.meteor.platforms.velocity.sender;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.proxy.ConsoleCommandSource;
 import com.velocitypowered.api.proxy.Player;
-import me.blueslime.meteor.color.renders.VelocitySpongeRenderer;
+import me.blueslime.meteor.color.renders.ComponentRenderer;
 import me.blueslime.meteor.platforms.api.entity.PlatformSender;
 import net.kyori.adventure.text.Component;
 
@@ -44,7 +44,7 @@ public class VelocitySender extends PlatformSender<CommandSource, Component> {
      */
     @Override
     protected Component colorize(String text) {
-        return VelocitySpongeRenderer.create(text);
+        return ComponentRenderer.translate(text);
     }
 
     /**

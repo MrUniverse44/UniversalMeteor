@@ -36,6 +36,14 @@ public abstract class AbstractImplementer {
         return inst().fetchClass(clazz, identifier, inst().fetchClass(EmptyImplementAction.class));
     }
 
+    public static <T> boolean isImplemented(Class<T> clazz) {
+        return inst().isImplementedClass(clazz);
+    }
+
+    public static <T> boolean isImplemented(Class<T> clazz, String identifier) {
+        return inst().isImplementedClass(clazz, identifier);
+    }
+
     public static <T> T setEntry(Class<T> clazz, T newValue) {
         return inst().update(clazz, newValue);
     }

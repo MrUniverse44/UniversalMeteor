@@ -4,6 +4,7 @@ import com.velocitypowered.api.command.SimpleCommand;
 import me.blueslime.meteor.platforms.api.commands.*;
 import me.blueslime.meteor.platforms.api.entity.Sender;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
+import me.blueslime.meteor.platforms.api.utils.CommandUtils;
 import me.blueslime.meteor.platforms.velocity.sender.VelocitySender;
 
 import java.util.ArrayList;
@@ -27,7 +28,9 @@ public class VelocityCommandExecute implements SimpleCommand, PlatformService {
         String[] args = invocation.arguments();
 
         try {
-            processExecution(sender, rootCommand, args);
+            String[] processedArgs = CommandUtils.groupQuotedArguments(args);
+
+            processExecution(sender, rootCommand, processedArgs);
         } catch (Exception e) {
             if (e instanceof IllegalArgumentException) {
                 return;
@@ -92,6 +95,15 @@ public class VelocityCommandExecute implements SimpleCommand, PlatformService {
             }
 
             String input = rawArgs[i];
+
+            if (i == expectedArgs.size() - 1 && definition.getType().equals(String.class)) {
+                StringBuilder builder = new StringBuilder(input);
+                for (int j = i + 1; j < rawArgs.length; j++) {
+                    builder.append(" ").append(rawArgs[j]);
+                }
+                input = builder.toString();
+            }
+
             ArgumentTypeHandler<?> handler = registry.getTypeHandler(definition.getType());
 
             if (handler == null) {

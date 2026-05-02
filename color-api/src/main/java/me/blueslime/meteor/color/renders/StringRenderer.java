@@ -20,6 +20,14 @@ public class StringRenderer implements Renderer<String> {
         return instance.render(segments);
     }
 
+    public static String translate(String textToRender) {
+        return create(UniversalColorParser.parse(textToRender));
+    }
+
+    public static String translate(List<UniversalColorParser.Segment> segments) {
+        return create(segments);
+    }
+
     @Override
     public String render(List<UniversalColorParser.Segment> segments) {
         StringBuilder sb = new StringBuilder();
@@ -38,6 +46,10 @@ public class StringRenderer implements Renderer<String> {
             sb.append(SECTION).append(ch);
         }
         return sb.toString();
+    }
+
+    public static String stripColor(String message) {
+        return UniversalColorParser.stripColor(message);
     }
 
 }

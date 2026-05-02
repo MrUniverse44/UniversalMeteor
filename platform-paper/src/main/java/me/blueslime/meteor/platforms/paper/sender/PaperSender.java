@@ -1,6 +1,6 @@
 package me.blueslime.meteor.platforms.paper.sender;
 
-import me.blueslime.meteor.color.renders.VelocitySpongeRenderer;
+import me.blueslime.meteor.color.renders.ComponentRenderer;
 import me.blueslime.meteor.platforms.api.entity.PlatformSender;
 import net.kyori.adventure.text.Component;
 import org.bukkit.command.CommandSender;
@@ -46,7 +46,7 @@ public class PaperSender extends PlatformSender<CommandSender, Component> {
      */
     @Override
     protected Component colorize(String text) {
-        return VelocitySpongeRenderer.create(text);
+        return ComponentRenderer.translate(text);
     }
 
     /**

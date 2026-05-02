@@ -8,7 +8,7 @@
     <parent>
         <groupId>me.blueslime.meteor</groupId>
         <artifactId>UniversalMeteor</artifactId>
-        <version>3.1.11-UMR</version>
+        <version>3.2.6-UMR</version>
     </parent>
 
     <artifactId>extra-services-paper</artifactId>
@@ -19,6 +19,21 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>placeholderapi</id>
+            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
+        </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+        <repository>
+            <id>codemc</id>
+            <url>https://repo.codemc.org/repository/maven-public/</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>io.papermc.paper</groupId>
@@ -26,9 +41,34 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>com.github.retrooper</groupId>
+            <artifactId>packetevents-spigot</artifactId>
+            <version>2.12.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>me.clip</groupId>
+            <artifactId>placeholderapi</artifactId>
+            <version>2.12.2</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
             <groupId>me.blueslime.meteor</groupId>
             <artifactId>modules-base</artifactId>
             <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>me.blueslime.meteor</groupId>
+            <artifactId>color-api</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Cache -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>3.2.3</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -47,6 +87,12 @@
             <groupId>me.blueslime.meteor</groupId>
             <artifactId>platform-api</artifactId>
             <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.skinsrestorer</groupId>
+            <artifactId>skinsrestorer-api</artifactId>
+            <version>15.11.0</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

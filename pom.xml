@@ -6,7 +6,7 @@
 
     <groupId>me.blueslime.meteor</groupId>
     <artifactId>UniversalMeteor</artifactId>
-    <version>3.1.11-UMR</version>
+    <version>3.2.6-UMR</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -43,7 +43,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
         <!-- Dependencies versions -->
-        <adventure.version>4.17.0</adventure.version>
+        <adventure.version>4.26.1</adventure.version>
         <configurate.version>4.1.2</configurate.version>
         <mongodb.version>3.12.14</mongodb.version>
         <jedis.version>5.2.0</jedis.version>
@@ -68,7 +68,7 @@
         <jetbrains.annotations.version>24.0.1</jetbrains.annotations.version>
         
         <!-- Platform versions -->
-        <paper.version>1.20.1-R0.1-SNAPSHOT</paper.version>
+        <paper.version>1.21.11-R0.1-SNAPSHOT</paper.version>
         <velocity.version>3.3.0-SNAPSHOT</velocity.version>
         <authlib.version>3.11.50</authlib.version>
     </properties>

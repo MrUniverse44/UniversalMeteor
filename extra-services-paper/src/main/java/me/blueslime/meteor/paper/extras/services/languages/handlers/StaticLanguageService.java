@@ -4,23 +4,21 @@ import me.blueslime.meteor.paper.extras.services.languages.LanguageService;
 import me.blueslime.meteor.paper.extras.services.languages.locale.Locale;
 import me.blueslime.meteor.platforms.api.configuration.handle.ConfigurationHandle;
 import me.blueslime.meteor.platforms.api.configuration.handle.DefaultConfigurationHandle;
-import me.blueslime.meteor.platforms.api.utils.files.YamlConfiguration;
-import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 import org.bukkit.entity.Player;
 
 import java.io.File;
 
 public class StaticLanguageService implements LanguageService {
 
-    private final Locale fallbackLocaleObject;
-    private final String fallbackLocaleText;
+    private Locale fallbackLocaleObject;
+    private String fallbackLocaleText;
     private final File directory;
 
-    public StaticLanguageService(File directory, String fallbackLocaleText) {
+    public StaticLanguageService(String fallbackLocaleText) {
         initialize();
         this.fallbackLocaleObject = Locale.fromString(fallbackLocaleText);
         this.fallbackLocaleText = fallbackLocaleText;
-        this.directory = directory;
+        this.directory = getDirectory();
     }
 
     @Override
@@ -33,7 +31,7 @@ public class StaticLanguageService implements LanguageService {
         registerImpl(
             ConfigurationHandle.class,
             "messages.yml",
-            new DefaultConfigurationHandle(new File(directory, "messages.yml"), "/messages.yml"),
+            getPlugin().getConfigurationProvider().load(new File(directory, "messages.yml"), "/messages.yml"),
             true
         );
     }
@@ -53,8 +51,18 @@ public class StaticLanguageService implements LanguageService {
         return fallbackLocaleText;
     }
 
+    public void updateFallbackLocale(String locale) {
+        this.fallbackLocaleObject = Locale.fromString(locale);
+        this.fallbackLocaleText = fallbackLocaleObject.getLanguage() + "_" + fallbackLocaleObject.getCountry();
+    }
+
     @Override
     public Locale fromPlayer(Player player) {
+        return fallbackLocaleObject;
+    }
+
+    @Override
+    public Locale getFallbackLocale() {
         return fallbackLocaleObject;
     }
 

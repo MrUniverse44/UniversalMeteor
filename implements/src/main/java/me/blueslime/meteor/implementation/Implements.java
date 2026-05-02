@@ -294,6 +294,11 @@ public class Implements extends AbstractImplementer {
         return (T) result;
     }
 
+    public boolean isImplemented(RegistrationData data) {
+        Object result = CLASS_MAP.get(data);
+        return result != null;
+    }
+
     public <T> T fetchClass(Class<T> clazz) {
         return fetchClass(RegistrationData.fromData(clazz));
     }
@@ -304,6 +309,14 @@ public class Implements extends AbstractImplementer {
 
     public <T> T fetchClass(Class<T> clazz, String identifier, EmptyImplementAction implement) {
         return fetchClass(RegistrationData.fromData(clazz, identifier), implement);
+    }
+
+    public <T> boolean isImplementedClass(Class<T> clazz) {
+        return isImplemented(RegistrationData.fromData(clazz));
+    }
+
+    public <T> boolean isImplementedClass(Class<T> clazz, String identifier) {
+        return isImplemented(RegistrationData.fromData(clazz, identifier));
     }
 
     @SuppressWarnings("unchecked")

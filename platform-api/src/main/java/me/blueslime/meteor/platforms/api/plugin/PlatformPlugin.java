@@ -67,6 +67,7 @@ public abstract class PlatformPlugin implements Implementer {
         registerImpl(PlatformPlugin.class, this, true);
         registerImpl(PlatformEvents.class, events, true);
         registerImpl(PlatformTasks.class, tasks, true);
+        registerImpl(PlatformConfigurations.class, configurations, true);
         registerImpl(Platforms.class, platform, true);
         registerImpl(PluginData.class, pluginData, true);
         registerImpl(PlatformCommands.class, commands, true);

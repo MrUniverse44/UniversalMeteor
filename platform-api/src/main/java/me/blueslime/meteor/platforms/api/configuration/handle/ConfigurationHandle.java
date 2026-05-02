@@ -140,6 +140,23 @@ public abstract class ConfigurationHandle {
     public abstract long getLong(String path, long def);
 
     /**
+     * Retrieves along from the specified path.
+     *
+     * @param path The path to retrieve the double from.
+     * @return The double value. Returns 0 if not found.
+     */
+    public abstract double getDouble(String path);
+
+    /**
+     * Retrieves along from the specified path with a fallback value.
+     *
+     * @param path The path to retrieve the double from.
+     * @param def  The default value to return if the path does not exist.
+     * @return The double value found, or the default value.
+     */
+    public abstract double getDouble(String path, double def);
+
+    /**
      * Retrieves a boolean value from the specified path.
      * <p>
      * This delegates to {@link #getStatus(String)}.
