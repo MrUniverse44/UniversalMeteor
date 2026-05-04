@@ -57,4 +57,37 @@ public class MariaDatabase extends SQLDatabase {
     public Connection getConnection() throws SQLException {
         return dataSource.getConnection();
     }
+
+
+    /**
+     * Checks whether the underlying handle is an instance of the given type.
+     *
+     * @param type The class to check compatibility with.
+     * @return true if the handle is non-null and can be cast to {@code type}, false otherwise.
+     */
+    @Override
+    public boolean is(Class<?> type) {
+        Object handle = dataSource;
+        if (handle == null || type == null) return false;
+        if (type == Object.class) return true;
+
+        Class<?> check = type.isPrimitive() ? primitiveToWrapper(type) : type;
+        return check.isInstance(handle);
+    }
+
+    /**
+     * Casts the underlying handle to a specific class type if compatible.
+     * <p>
+     * If the handle is not compatible with {@code type} this method returns {@code null}
+     * (no ClassCastException will be thrown).
+     *
+     * @param type The class to cast the handle to.
+     * @param <T>  The type of the class.
+     * @return The cast handle, or {@code null} if not compatible.
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T to(Class<T> type) {
+        return is(type) ? (T) dataSource : null;
+    }
 }

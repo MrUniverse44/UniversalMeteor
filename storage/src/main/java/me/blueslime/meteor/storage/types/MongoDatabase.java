@@ -2,6 +2,7 @@ package me.blueslime.meteor.storage.types;
 
 import me.blueslime.meteor.storage.database.StorageDatabase;
 import me.blueslime.meteor.storage.interfaces.*;
+import me.blueslime.meteor.storage.query.StorageQuery;
 import me.blueslime.meteor.storage.references.ReferencedObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
@@ -48,6 +49,141 @@ public class MongoDatabase extends StorageDatabase {
         if (database == null) {
             throw new IllegalStateException("MongoDatabase is null; call connect() first.");
         }
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Set<T>> matchAsync(Class<T> clazz, StorageQuery query) {
+        ensureConnected();
+        return CompletableFuture.supplyAsync(() -> matchSync(clazz, query));
+    }
+
+    @Override
+    public <T extends StorageObject> Set<T> matchSync(Class<T> clazz, StorageQuery query) {
+        ensureConnected();
+
+        Set<T> results = new LinkedHashSet<>();
+        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
+
+        Document bsonFilter = new Document();
+        for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
+            //noinspection UseBulkOperation
+            bsonFilter.put(entry.getKey(), entry.getValue());
+        }
+
+        var findIterable = coll.find(bsonFilter);
+
+        if (query.getSortBy() != null) {
+            findIterable.sort(new Document(query.getSortBy(), query.isSortDescending() ? -1 : 1));
+        }
+
+        if (query.getLimit() != null) {
+            findIterable.limit(query.getLimit());
+        }
+
+        for (Document doc : findIterable) {
+            T obj = mapper().fromDocument(clazz, doc);
+            if (obj != null) results.add(obj);
+        }
+
+        return results;
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz, StorageQuery query) {
+        ensureConnected();
+        return CompletableFuture.supplyAsync(() -> countSync(clazz, query));
+    }
+
+    @Override
+    public <T extends StorageObject> long countSync(Class<T> clazz, StorageQuery query) {
+        ensureConnected();
+        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
+
+        Document bsonFilter = new Document();
+        if (query != null && query.getFilters() != null) {
+            for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
+                //noinspection UseBulkOperation
+                bsonFilter.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        return coll.countDocuments(bsonFilter);
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz) {
+        ensureConnected();
+        return CompletableFuture.supplyAsync(() -> countSync(clazz, null));
+    }
+
+    @Override
+    public <T extends StorageObject> long countSync(Class<T> clazz) {
+        return countSync(clazz, null);
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz) {
+        return CompletableFuture.runAsync(() -> deleteAllSync(clazz));
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz) {
+        ensureConnected();
+        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
+        coll.deleteMany(new Document());
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz, StorageQuery query) {
+        return CompletableFuture.runAsync(() -> deleteAllSync(clazz, query));
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz, StorageQuery query) {
+        ensureConnected();
+        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
+
+        Document bsonFilter = new Document();
+        if (query != null && query.getFilters() != null) {
+            for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
+                //noinspection UseBulkOperation
+                bsonFilter.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        coll.deleteMany(bsonFilter);
+    }
+
+    /**
+     * Checks whether the underlying handle is an instance of the given type.
+     *
+     * @param type The class to check compatibility with.
+     * @return true if the handle is non-null and can be cast to {@code type}, false otherwise.
+     */
+    @Override
+    public boolean is(Class<?> type) {
+        Object handle = database;
+        if (handle == null || type == null) return false;
+        if (type == Object.class) return true;
+
+        Class<?> check = type.isPrimitive() ? primitiveToWrapper(type) : type;
+        return check.isInstance(handle);
+    }
+
+    /**
+     * Casts the underlying handle to a specific class type if compatible.
+     * <p>
+     * If the handle is not compatible with {@code type} this method returns {@code null}
+     * (no ClassCastException will be thrown).
+     *
+     * @param type The class to cast the handle to.
+     * @param <T>  The type of the class.
+     * @return The cast handle, or {@code null} if not compatible.
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T to(Class<T> type) {
+        return is(type) ? (T) database : null;
     }
 
     @Override

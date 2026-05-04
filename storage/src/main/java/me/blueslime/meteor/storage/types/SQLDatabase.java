@@ -2,6 +2,7 @@ package me.blueslime.meteor.storage.types;
 
 import me.blueslime.meteor.storage.database.StorageDatabase;
 import me.blueslime.meteor.storage.interfaces.*;
+import me.blueslime.meteor.storage.query.StorageQuery;
 import me.blueslime.meteor.storage.references.ReferencedObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -132,6 +133,161 @@ public abstract class SQLDatabase extends StorageDatabase {
         } catch (SQLException e) {
             logError("Error saving extra identifiers for " + rawTableName, e);
         }
+    }
+
+    protected String buildJsonCondition(String key) {
+        return "JSON_UNQUOTE(JSON_EXTRACT(`json_data`, '$." + key + "'))";
+    }
+
+    private void appendQueryFilters(StringBuilder sql, List<Object> params, StorageQuery query) {
+        if (query != null && query.getFilters() != null && !query.getFilters().isEmpty()) {
+            sql.append(" WHERE ");
+            boolean first = true;
+            for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
+                if (!first) sql.append(" AND ");
+                first = false;
+
+                String key = entry.getKey();
+                Object val = entry.getValue();
+
+                if (val == null) {
+                    sql.append(buildJsonCondition(key)).append(" IS NULL");
+                } else {
+                    sql.append(buildJsonCondition(key)).append(" = ?");
+                    params.add(val.toString());
+                }
+            }
+        }
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Set<T>> matchAsync(Class<T> clazz, StorageQuery query) {
+        return CompletableFuture.supplyAsync(() -> matchSync(clazz, query), dbExecutor);
+    }
+
+    @Override
+    public <T extends StorageObject> Set<T> matchSync(Class<T> clazz, StorageQuery query) {
+        ensureConnected();
+        Set<T> results = new LinkedHashSet<>();
+        String table = sanitizeIdentifier(clazz.getSimpleName());
+
+        StringBuilder sql = new StringBuilder("SELECT `json_data` FROM ").append(table);
+        List<Object> parameters = new ArrayList<>();
+
+        appendQueryFilters(sql, parameters, query);
+
+        if (query != null && query.getSortBy() != null) {
+            sql.append(" ORDER BY ").append(buildJsonCondition(query.getSortBy()));
+            sql.append(query.isSortDescending() ? " DESC" : " ASC");
+        }
+
+        if (query != null && query.getLimit() != null) {
+            sql.append(" LIMIT ").append(query.getLimit());
+        }
+
+        try (PreparedStatement stmt = getConnection().prepareStatement(sql.toString())) {
+            for (int i = 0; i < parameters.size(); i++) {
+                stmt.setObject(i + 1, parameters.get(i));
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String json = rs.getString("json_data");
+                    T obj = mapper().fromJson(json, clazz);
+                    if (obj != null) results.add(obj);
+                }
+            }
+        } catch (SQLException e) {
+            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
+                logError("Error in matchSync for table " + table, e);
+            }
+        }
+        return results;
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz, StorageQuery query) {
+        return CompletableFuture.supplyAsync(() -> countSync(clazz, query), dbExecutor);
+    }
+
+    @Override
+    public <T extends StorageObject> long countSync(Class<T> clazz, StorageQuery query) {
+        ensureConnected();
+        String table = sanitizeIdentifier(clazz.getSimpleName());
+
+        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM ").append(table);
+        List<Object> parameters = new ArrayList<>();
+
+        appendQueryFilters(sql, parameters, query);
+
+        try (PreparedStatement stmt = getConnection().prepareStatement(sql.toString())) {
+            for (int i = 0; i < parameters.size(); i++) {
+                stmt.setObject(i + 1, parameters.get(i));
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) return rs.getLong(1);
+            }
+        } catch (SQLException e) {
+            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
+                logError("Error in countSync for table " + table, e);
+            }
+        }
+        return 0L;
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz) {
+        return CompletableFuture.runAsync(() -> deleteAllSync(clazz), dbExecutor);
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz) {
+        ensureConnected();
+        String table = sanitizeIdentifier(clazz.getSimpleName());
+        String sql = "DELETE FROM " + table;
+        try (Statement stmt = getConnection().createStatement()) {
+            stmt.executeUpdate(sql);
+        } catch (SQLException e) {
+            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
+                logError("Error in deleteAllSync (all) for table " + table, e);
+            }
+        }
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz, StorageQuery query) {
+        return CompletableFuture.runAsync(() -> deleteAllSync(clazz, query), dbExecutor);
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz, StorageQuery query) {
+        ensureConnected();
+        String table = sanitizeIdentifier(clazz.getSimpleName());
+
+        StringBuilder sql = new StringBuilder("DELETE FROM ").append(table);
+        List<Object> parameters = new ArrayList<>();
+
+        appendQueryFilters(sql, parameters, query);
+
+        try (PreparedStatement stmt = getConnection().prepareStatement(sql.toString())) {
+            for (int i = 0; i < parameters.size(); i++) {
+                stmt.setObject(i + 1, parameters.get(i));
+            }
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
+                logError("Error in deleteAllSync (filtered) for table " + table, e);
+            }
+        }
+    }
+
+    @Override
+    public <T extends StorageObject> long countSync(Class<T> clazz) {
+        return countSync(clazz, null);
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz) {
+        return countAsync(clazz, null);
     }
 
     @Override

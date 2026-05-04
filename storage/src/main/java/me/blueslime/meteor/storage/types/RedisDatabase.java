@@ -2,6 +2,7 @@ package me.blueslime.meteor.storage.types;
 
 import me.blueslime.meteor.storage.database.StorageDatabase;
 import me.blueslime.meteor.storage.interfaces.*;
+import me.blueslime.meteor.storage.query.StorageQuery;
 import me.blueslime.meteor.storage.references.ReferencedObject;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
@@ -173,6 +174,120 @@ public class RedisDatabase extends StorageDatabase {
         } catch (Exception e) {
             logError("Failed deleteByIdSync for " + clazz.getSimpleName(), e);
         }
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Set<T>> matchAsync(Class<T> clazz, StorageQuery query) {
+        return supplyAsync(() -> matchSync(clazz, query));
+    }
+
+    @Override
+    public <T extends StorageObject> Set<T> matchSync(Class<T> clazz, StorageQuery query) {
+        return applyQueryInMemory(loadAllSync(clazz), query);
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz, StorageQuery query) {
+        return supplyAsync(() -> countSync(clazz, query));
+    }
+
+    @Override
+    public <T extends StorageObject> long countSync(Class<T> clazz, StorageQuery query) {
+        return matchSync(clazz, query).size();
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz) {
+        return runAsync(() -> deleteAllSync(clazz));
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz) {
+        ensurePool();
+        try (Jedis j = jedisPool.getResource()) {
+            Set<String> ids = j.smembers(idsKeyFor(clazz));
+            if (ids != null) {
+                for (String id : ids) {
+                    deleteByIdSync(clazz, id);
+                }
+            }
+        } catch (Exception e) {
+            logError("Failed deleteAllSync for " + clazz.getSimpleName(), e);
+        }
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz, StorageQuery query) {
+        return runAsync(() -> deleteAllSync(clazz, query));
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz, StorageQuery query) {
+        Set<T> toDelete = matchSync(clazz, query);
+        for (T obj : toDelete) {
+            String id = extractIdentifier(obj);
+            if (id != null) {
+                deleteByIdSync(clazz, id);
+            }
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    protected <T extends StorageObject> Set<T> applyQueryInMemory(Set<T> elements, StorageQuery query) {
+        if (query == null) return elements;
+
+        List<Map.Entry<T, org.bson.Document>> wrapped = elements.stream()
+                .map(e -> new AbstractMap.SimpleEntry<>(e, mapper().toDocument(e)))
+                .collect(java.util.stream.Collectors.toList());
+
+        if (query.getFilters() != null && !query.getFilters().isEmpty()) {
+            wrapped.removeIf(w -> {
+                for (Map.Entry<String, Object> filter : query.getFilters().entrySet()) {
+                    Object val = w.getValue().get(filter.getKey());
+                    if (filter.getValue() == null) {
+                        if (val != null) return true;
+                    } else {
+                        if (val == null || !String.valueOf(filter.getValue()).equals(String.valueOf(val))) return true;
+                    }
+                }
+                return false;
+            });
+        }
+
+        if (query.getSortBy() != null) {
+            wrapped.sort((a, b) -> {
+                Object valA = a.getValue().get(query.getSortBy());
+                Object valB = b.getValue().get(query.getSortBy());
+
+                int cmp = 0;
+                if (valA instanceof Comparable && valB instanceof Comparable) {
+                    cmp = ((Comparable) valA).compareTo(valB);
+                } else if (valA != null && valB != null) {
+                    cmp = valA.toString().compareTo(valB.toString());
+                } else if (valA != null) cmp = 1;
+                else if (valB != null) cmp = -1;
+
+                return query.isSortDescending() ? -cmp : cmp;
+            });
+        }
+
+        if (query.getLimit() != null && query.getLimit() > 0 && query.getLimit() < wrapped.size()) {
+            wrapped = wrapped.subList(0, query.getLimit());
+        }
+
+        return wrapped.stream()
+            .map(Map.Entry::getKey)
+            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz) {
+        return countAsync(clazz, new StorageQuery());
+    }
+
+    @Override
+    public <T extends StorageObject> long countSync(Class<T> clazz) {
+        return countSync(clazz, new StorageQuery());
     }
 
     @Override
