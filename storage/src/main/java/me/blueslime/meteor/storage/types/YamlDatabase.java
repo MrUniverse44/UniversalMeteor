@@ -189,6 +189,16 @@ public class YamlDatabase extends StorageDatabase {
     }
 
     @Override
+    public <T extends StorageObject> boolean deleteExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
+        return false;
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Boolean> deleteExtraIdentifierAsync(Class<T> clazz, String extraIdentifier) {
+        return null;
+    }
+
+    @Override
     public <T extends StorageObject> long countSync(Class<T> clazz) {
         return countSync(clazz, new StorageQuery());
     }

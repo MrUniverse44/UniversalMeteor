@@ -166,6 +166,16 @@ public abstract class SQLDatabase extends StorageDatabase {
     }
 
     @Override
+    public <T extends StorageObject> boolean deleteExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
+        return false;
+    }
+
+    @Override
+    public <T extends StorageObject> CompletableFuture<Boolean> deleteExtraIdentifierAsync(Class<T> clazz, String extraIdentifier) {
+        return null;
+    }
+
+    @Override
     public <T extends StorageObject> Set<T> matchSync(Class<T> clazz, StorageQuery query) {
         ensureConnected();
         Set<T> results = new LinkedHashSet<>();

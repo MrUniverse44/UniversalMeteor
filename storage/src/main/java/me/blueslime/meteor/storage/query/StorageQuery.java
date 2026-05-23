@@ -2,6 +2,7 @@ package me.blueslime.meteor.storage.query;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class StorageQuery {
     private final Map<String, Object> filters = new HashMap<>();
@@ -11,6 +12,52 @@ public class StorageQuery {
 
     public StorageQuery filter(String key, Object value) {
         filters.put(key, value);
+        return this;
+    }
+
+    // Mayor que
+    public StorageQuery greaterThan(String key, Object value) {
+        return addOperation(key, "$gt", value);
+    }
+
+    public StorageQuery lessThan(String key, Object value) {
+        return addOperation(key, "$lt", value);
+    }
+
+    public StorageQuery contains(String key, String value) {
+        return addOperation(key, "$regex", ".*" + Pattern.quote(value) + ".*");
+    }
+
+    public StorageQuery startsWith(String key, String value) {
+        return addOperation(key, "$regex", "^" + Pattern.quote(value));
+    }
+
+    public StorageQuery endsWith(String key, String value) {
+        return addOperation(key, "$regex", Pattern.quote(value) + "$");
+    }
+
+    public StorageQuery isPresent(String key, boolean present) {
+        return addOperation(key, "$exists", present);
+    }
+
+    @SuppressWarnings("unchecked")
+    private StorageQuery addOperation(String key, String operator, Object value) {
+        Object existing = filters.get(key);
+        Map<String, Object> operationMap;
+
+        if (existing instanceof Map) {
+            operationMap = (Map<String, Object>) existing;
+        } else {
+            operationMap = new HashMap<>();
+        }
+
+        operationMap.put(operator, value);
+
+        if ("$regex".equals(operator)) {
+            operationMap.put("$options", "i");
+        }
+
+        filters.put(key, operationMap);
         return this;
     }
 

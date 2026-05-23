@@ -1,5 +1,6 @@
 package me.blueslime.meteor.storage.types;
 
+import com.mongodb.client.result.DeleteResult;
 import me.blueslime.meteor.storage.database.StorageDatabase;
 import me.blueslime.meteor.storage.interfaces.*;
 import me.blueslime.meteor.storage.query.StorageQuery;
@@ -57,6 +58,22 @@ public class MongoDatabase extends StorageDatabase {
         return CompletableFuture.supplyAsync(() -> matchSync(clazz, query));
     }
 
+    @SuppressWarnings("unchecked")
+    private Document buildBsonFilter(StorageQuery query) {
+        Document bsonFilter = new Document();
+        if (query != null && query.getFilters() != null) {
+            for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
+                Object val = entry.getValue();
+                if (val instanceof Map) {
+                    bsonFilter.put(entry.getKey(), new Document((Map<String, Object>) val));
+                } else {
+                    bsonFilter.put(entry.getKey(), val);
+                }
+            }
+        }
+        return bsonFilter;
+    }
+
     @Override
     public <T extends StorageObject> Set<T> matchSync(Class<T> clazz, StorageQuery query) {
         ensureConnected();
@@ -64,11 +81,7 @@ public class MongoDatabase extends StorageDatabase {
         Set<T> results = new LinkedHashSet<>();
         MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
 
-        Document bsonFilter = new Document();
-        for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
-            //noinspection UseBulkOperation
-            bsonFilter.put(entry.getKey(), entry.getValue());
-        }
+        Document bsonFilter = buildBsonFilter(query);
 
         var findIterable = coll.find(bsonFilter);
 
@@ -99,13 +112,7 @@ public class MongoDatabase extends StorageDatabase {
         ensureConnected();
         MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
 
-        Document bsonFilter = new Document();
-        if (query != null && query.getFilters() != null) {
-            for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
-                //noinspection UseBulkOperation
-                bsonFilter.put(entry.getKey(), entry.getValue());
-            }
-        }
+        Document bsonFilter = buildBsonFilter(query);
 
         return coll.countDocuments(bsonFilter);
     }
@@ -126,6 +133,46 @@ public class MongoDatabase extends StorageDatabase {
         return CompletableFuture.runAsync(() -> deleteAllSync(clazz));
     }
 
+    /**
+     * Verify async if an extra identifier is being used
+     * @param clazz Entity class
+     * @param extraIdentifier text to verify
+     * @return true if already exists otherwise returns else
+     */
+    public <T extends StorageObject> boolean checkExtraIdentifierExistsSync(Class<T> clazz, String extraIdentifier) {
+        ensureConnected();
+
+        String extra = extraIdentifier.toLowerCase(Locale.ENGLISH);
+        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName() + "-StringNaming");
+
+        Document doc = collection.find(eq("_id", extra)).first();
+
+        return doc != null;
+    }
+
+    /**
+     * Verify async if an extra identifier is being used
+     */
+    public <T extends StorageObject> CompletableFuture<Boolean> checkExtraIdentifierExistsAsync(Class<T> clazz, String extraIdentifier) {
+        return CompletableFuture.supplyAsync(() -> checkExtraIdentifierExistsSync(clazz, extraIdentifier));
+    }
+
+    public <T extends StorageObject> boolean deleteExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
+        ensureConnected();
+
+        String extra = extraIdentifier.toLowerCase(Locale.ENGLISH);
+        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName() + "-StringNaming");
+        DeleteResult result = collection.deleteOne(eq("_id", extra));
+
+        return result.getDeletedCount() > 0;
+    }
+
+    public <T extends StorageObject> CompletableFuture<Boolean> deleteExtraIdentifierAsync(Class<T> clazz, String extraIdentifier) {
+        return CompletableFuture.supplyAsync(() -> {
+            return deleteExtraIdentifierSync(clazz, extraIdentifier);
+        });
+    }
+
     @Override
     public <T extends StorageObject> void deleteAllSync(Class<T> clazz) {
         ensureConnected();
@@ -143,13 +190,7 @@ public class MongoDatabase extends StorageDatabase {
         ensureConnected();
         MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
 
-        Document bsonFilter = new Document();
-        if (query != null && query.getFilters() != null) {
-            for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
-                //noinspection UseBulkOperation
-                bsonFilter.put(entry.getKey(), entry.getValue());
-            }
-        }
+        Document bsonFilter = buildBsonFilter(query);
 
         coll.deleteMany(bsonFilter);
     }

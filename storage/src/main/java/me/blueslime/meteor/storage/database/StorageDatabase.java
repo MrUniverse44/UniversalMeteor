@@ -45,6 +45,10 @@ public abstract class StorageDatabase implements PlatformService {
 
     public abstract <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz);
 
+    public abstract <T extends StorageObject> boolean deleteExtraIdentifierSync(Class<T> clazz, String extraIdentifier);
+
+    public abstract <T extends StorageObject> CompletableFuture<Boolean> deleteExtraIdentifierAsync(Class<T> clazz, String extraIdentifier);
+
     public abstract <T extends StorageObject> long countSync(Class<T> clazz);
 
     public abstract <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz);

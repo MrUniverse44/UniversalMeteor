@@ -8,7 +8,7 @@
     <parent>
         <groupId>me.blueslime.meteor</groupId>
         <artifactId>UniversalMeteor</artifactId>
-        <version>3.2.7-UMR</version>
+        <version>3.2.8-UMR</version>
     </parent>
 
     <artifactId>modules-bungeecord</artifactId>
