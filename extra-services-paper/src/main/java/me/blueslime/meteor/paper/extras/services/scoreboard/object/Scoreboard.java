@@ -5,7 +5,7 @@ import me.blueslime.meteor.paper.extras.services.conditions.CompiledCondition;
 import me.blueslime.meteor.paper.extras.services.conditions.objects.ConditionCompiler;
 import me.blueslime.meteor.paper.extras.services.languages.locale.Locale;
 import me.blueslime.meteor.platforms.api.configuration.handle.ConfigurationHandle;
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,7 +33,7 @@ public record Scoreboard(String id, int priority, String title, List<String> lin
             try {
                 scoreboards.add(Scoreboard.of(key, handle.getSection("scoreboards." + key)));
             } catch (Exception e) {
-                Implements.fetch(PlatformLogger.class).error(e, "Can't fetch scoreboards: " + e.getMessage());
+                Implements.fetch(IPlatformLogger.class).error(e, "Can't fetch scoreboards: " + e.getMessage());
             }
         }
         return scoreboards;
@@ -50,9 +50,9 @@ public record Scoreboard(String id, int priority, String title, List<String> lin
             for (String scoreboardId : handle.getKeys("scoreboards." + languageKey, false)) {
                 try {
                     independent.add(Scoreboard.of(scoreboardId, handle.getSection("scoreboards." + languageKey + "." + scoreboardId)));
-                    Implements.fetch(PlatformLogger.class).debug("Added Scoreboard with id " + scoreboardId + " to language code: " + finalLanguage);
+                    Implements.fetch(IPlatformLogger.class).debug("Added Scoreboard with id " + scoreboardId + " to language code: " + finalLanguage);
                 } catch (Exception e) {
-                    Implements.fetch(PlatformLogger.class).error(e, "Can't fetch scoreboards: " + e.getMessage());
+                    Implements.fetch(IPlatformLogger.class).error(e, "Can't fetch scoreboards: " + e.getMessage());
                 }
             }
         }

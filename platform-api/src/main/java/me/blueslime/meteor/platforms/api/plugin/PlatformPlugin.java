@@ -8,6 +8,7 @@ import me.blueslime.meteor.platforms.api.configuration.PlatformConfigurations;
 import me.blueslime.meteor.platforms.api.data.PluginData;
 import me.blueslime.meteor.platforms.api.events.PlatformEvents;
 import me.blueslime.meteor.platforms.api.info.PluginInfo;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
 import me.blueslime.meteor.platforms.api.service.ServiceContainer;
 import me.blueslime.meteor.platforms.api.tasks.PlatformTasks;
@@ -37,7 +38,7 @@ public abstract class PlatformPlugin implements Implementer {
 
     protected PlatformConfigurations configurations = PlatformConfigurations.DEFAULT;
     protected PlatformEvents events;
-    protected PlatformLogger logger;
+    protected IPlatformLogger logger;
     protected PluginData pluginData;
     protected PlatformTasks tasks;
     protected PlatformCommands commands;
@@ -63,7 +64,10 @@ public abstract class PlatformPlugin implements Implementer {
      *  - call {@link #onInitialize()} hook for subclass-specific init<
      */
     public final void initialize() {
-        registerImpl(PlatformLogger.class, logger, true);
+        registerImpl(IPlatformLogger.class, logger, true);
+        if (logger instanceof PlatformLogger platformLogger) {
+            registerImpl(PlatformLogger.class, platformLogger, true); // * DEPRECATED
+        }
         registerImpl(PlatformPlugin.class, this, true);
         registerImpl(PlatformEvents.class, events, true);
         registerImpl(PlatformTasks.class, tasks, true);
@@ -213,7 +217,7 @@ public abstract class PlatformPlugin implements Implementer {
         return configurations;
     }
 
-    public PlatformLogger getLogger() {
+    public IPlatformLogger getLogger() {
         return logger;
     }
 

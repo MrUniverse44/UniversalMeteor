@@ -1,6 +1,6 @@
 package me.blueslime.meteor.storage.messenger.channels;
 
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.storage.mapper.ObjectMapper;
 import me.blueslime.meteor.storage.messenger.channels.cache.ChannelCache;
 import me.blueslime.meteor.storage.messenger.Messenger;
@@ -11,7 +11,7 @@ public abstract class BaseChannel extends Channel {
     protected final Messenger messenger;
     protected final ObjectMapper objectMapper;
     protected final ChannelCache cache;
-    protected final PlatformLogger logger;
+    protected final IPlatformLogger logger;
 
     public BaseChannel(Messenger messenger) {
         this.messenger = messenger;
@@ -27,7 +27,7 @@ public abstract class BaseChannel extends Channel {
         this.logger = messenger.getLogger();
     }
 
-    public BaseChannel(Messenger messenger, ObjectMapper mapper, ChannelCache cache, PlatformLogger logger) {
+    public BaseChannel(Messenger messenger, ObjectMapper mapper, ChannelCache cache, IPlatformLogger logger) {
         this.messenger = messenger;
         this.objectMapper = mapper;
         this.cache = cache;

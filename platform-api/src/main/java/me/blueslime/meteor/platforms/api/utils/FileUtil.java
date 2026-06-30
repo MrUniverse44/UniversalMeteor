@@ -1,7 +1,7 @@
 package me.blueslime.meteor.platforms.api.utils;
 
 import me.blueslime.meteor.implementation.Implements;
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 
 import java.io.File;
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class FileUtil {
             try (InputStream in = resource) {
                 cloneResource(file, in);
             } catch (Exception exception) {
-                Implements.fetch(PlatformLogger.class).error(exception, "Can't create resource copy of a .yml");
+                Implements.fetch(IPlatformLogger.class).error(exception, "Can't create resource copy of a .yml");
             }
         }
     }

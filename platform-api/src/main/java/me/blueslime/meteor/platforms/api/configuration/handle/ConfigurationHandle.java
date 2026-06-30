@@ -1,7 +1,7 @@
 package me.blueslime.meteor.platforms.api.configuration.handle;
 
 import me.blueslime.meteor.implementation.Implements;
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.platforms.api.utils.FileUtil;
 
 import java.io.File;
@@ -331,8 +331,8 @@ public abstract class ConfigurationHandle {
         return Implements.fetch(Random.class);
     }
 
-    public PlatformLogger getLogger() {
-        return Implements.fetch(PlatformLogger.class);
+    public IPlatformLogger getLogger() {
+        return Implements.fetch(IPlatformLogger.class);
     }
 
     public InputStream getResource() {

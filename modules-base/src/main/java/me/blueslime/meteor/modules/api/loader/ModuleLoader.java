@@ -10,7 +10,7 @@ import me.blueslime.meteor.modules.api.loader.jar.ModuleIndividualContainer;
 import me.blueslime.meteor.modules.api.loader.jar.ModuleLoaderContainer;
 import me.blueslime.meteor.modules.api.loader.method.MethodSignature;
 import me.blueslime.meteor.modules.api.loader.state.ModuleState;
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
 import me.blueslime.meteor.platforms.api.plugin.handle.PlatformHandle;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
@@ -43,11 +43,11 @@ public class ModuleLoader implements PlatformService {
     private final ConcurrentMap<Path, List<String>> classNameCache = new ConcurrentHashMap<>();
     private final PlatformModules moduleManager;
     private final PlatformHandle handle;
-    private final PlatformLogger logger;
+    private final IPlatformLogger logger;
     private final boolean shouldDebug;
     private final ExecutorService ioExecutor;
 
-    public ModuleLoader(PlatformModules manager, PlatformHandle handle, PlatformLogger logger, boolean shouldDebug) {
+    public ModuleLoader(PlatformModules manager, PlatformHandle handle, IPlatformLogger logger, boolean shouldDebug) {
         this.moduleManager = manager;
         this.handle = handle;
         this.logger = logger;
@@ -215,7 +215,7 @@ public class ModuleLoader implements PlatformService {
         var previous = Thread.currentThread().getContextClassLoader();
         Thread.currentThread().setContextClassLoader(cl);
         try {
-            var constructor = clazz.getDeclaredConstructor(File.class, PlatformPlugin.class, PlatformLogger.class);
+            var constructor = clazz.getDeclaredConstructor(File.class, PlatformPlugin.class, IPlatformLogger.class);
             constructor.setAccessible(true);
             ref.set(constructor.newInstance(folder, getPlugin(), getLogger().createModuleLogger(loggerName)));
         } catch (Throwable t) {

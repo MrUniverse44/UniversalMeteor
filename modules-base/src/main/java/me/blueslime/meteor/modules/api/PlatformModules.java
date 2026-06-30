@@ -6,7 +6,7 @@ import me.blueslime.meteor.modules.api.loader.ModuleLoader;
 import me.blueslime.meteor.modules.api.loader.jar.ModuleContainer;
 import me.blueslime.meteor.modules.api.loader.jar.ModuleIndividualContainer;
 import me.blueslime.meteor.modules.api.loader.state.ModuleState;
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.handle.PlatformHandle;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
 
@@ -41,7 +41,7 @@ public class PlatformModules implements PlatformService {
     // * CACHE
     private final Map<String, ModuleIndividualContainer> loadedModules = new ConcurrentHashMap<>();
     private final ModuleLoader moduleLoader;
-    private final PlatformLogger logger;
+    private final IPlatformLogger logger;
     // * DATA
     private final boolean shouldDebug;
     private final File modulesFolder;
@@ -59,7 +59,7 @@ public class PlatformModules implements PlatformService {
 
         // * Platform Events
         PlatformHandle handle = fetch(PlatformHandle.class);
-        this.logger = fetch(PlatformLogger.class);
+        this.logger = fetch(IPlatformLogger.class);
 
         // Initialize the loader with the handle
         this.moduleLoader = new ModuleLoader(this, handle, logger, shouldDebug);

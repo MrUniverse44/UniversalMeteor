@@ -1,7 +1,7 @@
 package me.blueslime.meteor.modules.api.api;
 
 import me.blueslime.meteor.modules.api.api.module.status.ModuleStatus;
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
 
 import java.util.HashSet;
@@ -18,10 +18,10 @@ public abstract class PlatformModule<ListenerType> {
 
     protected final Set<ListenerType> listeners = new HashSet<>();
     protected final PlatformPlugin platform;
-    protected final PlatformLogger logger;
+    protected final IPlatformLogger logger;
     private final File directory;
 
-    public PlatformModule(File file, PlatformPlugin platform, PlatformLogger moduleLogger) {
+    public PlatformModule(File file, PlatformPlugin platform, IPlatformLogger moduleLogger) {
         this.directory = file;
         this.platform = platform;
         this.logger = moduleLogger;
@@ -52,7 +52,7 @@ public abstract class PlatformModule<ListenerType> {
      * Gets the logger for this module
      * @return the logger
      */
-    public PlatformLogger getLogger() {
+    public IPlatformLogger getLogger() {
         return logger;
     }
 

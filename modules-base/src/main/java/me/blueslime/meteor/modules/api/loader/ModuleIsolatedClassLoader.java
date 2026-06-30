@@ -1,6 +1,6 @@
 package me.blueslime.meteor.modules.api.loader;
 
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 
 import java.io.IOException;
 import java.net.URL;
@@ -13,7 +13,7 @@ public final class ModuleIsolatedClassLoader extends URLClassLoader {
 
     private final List<ClassLoader> fallbacks;
     private final List<String> parentFirstPackages;
-    private final PlatformLogger logger;
+    private final IPlatformLogger logger;
     private final boolean shouldDebug;
 
 
@@ -23,7 +23,7 @@ public final class ModuleIsolatedClassLoader extends URLClassLoader {
         ClassLoader parent,
         List<ClassLoader> fallbacks,
         Collection<String> parentFirstPackages,
-        PlatformLogger logger
+        IPlatformLogger logger
     ) {
         super(urls, parent);
         this.fallbacks = fallbacks == null ? new CopyOnWriteArrayList<>() : new CopyOnWriteArrayList<>(fallbacks);

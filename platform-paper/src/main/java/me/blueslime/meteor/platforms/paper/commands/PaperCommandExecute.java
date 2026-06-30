@@ -3,7 +3,7 @@ package me.blueslime.meteor.platforms.paper.commands;
 import me.blueslime.meteor.implementation.Implements;
 import me.blueslime.meteor.platforms.api.commands.*;
 import me.blueslime.meteor.platforms.api.entity.Sender;
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.platforms.api.utils.CommandUtils;
 import me.blueslime.meteor.platforms.paper.sender.PaperSender;
 import org.bukkit.command.CommandSender;
@@ -27,7 +27,7 @@ public class PaperCommandExecute extends org.bukkit.command.Command {
 
     @Override
     public boolean execute(@NotNull CommandSender bukkitSender, @NotNull String label, String[] args) {
-        PlatformLogger logger = Implements.fetch(PlatformLogger.class);
+        IPlatformLogger logger = Implements.fetch(IPlatformLogger.class);
         Sender sender = PaperSender.build(bukkitSender);
 
         try {

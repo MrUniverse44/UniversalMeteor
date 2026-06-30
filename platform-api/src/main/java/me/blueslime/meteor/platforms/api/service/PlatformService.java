@@ -7,7 +7,7 @@ import me.blueslime.meteor.platforms.api.commands.PlatformCommands;
 import me.blueslime.meteor.platforms.api.configuration.PlatformConfigurations;
 import me.blueslime.meteor.platforms.api.data.PluginData;
 import me.blueslime.meteor.platforms.api.events.PlatformEvents;
-import me.blueslime.meteor.platforms.api.logger.PlatformLogger;
+import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.platforms.api.plugin.PlatformPlugin;
 import me.blueslime.meteor.platforms.api.tasks.PlatformTasks;
 
@@ -15,8 +15,8 @@ import java.io.File;
 
 public interface PlatformService extends Service, Implementer {
 
-    default PlatformLogger getLogger() {
-        return fetch(PlatformLogger.class);
+    default IPlatformLogger getLogger() {
+        return fetch(IPlatformLogger.class);
     }
 
     default PlatformTasks getTaskScheduler() {
