@@ -15,7 +15,6 @@ public class StorageQuery {
         return this;
     }
 
-    // Mayor que
     public StorageQuery greaterThan(String key, Object value) {
         return addOperation(key, "$gt", value);
     }

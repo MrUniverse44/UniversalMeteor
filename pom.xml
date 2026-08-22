@@ -33,6 +33,7 @@
         <module>platform-forge</module>
         <module>platform-hytale-backend</module>
         <module>platform-hytale-proxy</module>
+        <module>platform-standalone</module>
         <!-- Extra services -->
         <module>extra-services-paper</module>
     </modules>
@@ -218,10 +219,6 @@
             <url>https://repo.codemc.io/repository/maven-snapshots/</url>
         </repository>
         <repository>
-            <id>blueslime</id>
-            <url>https://repo.nvaliant.shop/repository/maven-public/</url>
-        </repository>
-        <repository>
             <id>sponge-repo</id>
             <name>Sponge Maven Repository</name>
             <url>https://repo.spongepowered.org/repository/maven-public/</url>
@@ -236,17 +233,6 @@
             <url>https://maven.neoforged.net/releases</url>
         </repository>
     </repositories>
-
-    <distributionManagement>
-        <snapshotRepository>
-            <id>blueslime-snapshots</id>
-            <url>https://repo.nvaliant.shop/repository/maven-snapshots/</url>
-        </snapshotRepository>
-        <repository>
-            <id>blueslime-releases</id>
-            <url>https://repo.nvaliant.shop/repository/maven-releases/</url>
-        </repository>
-    </distributionManagement>
 
     <build>
         <pluginManagement>

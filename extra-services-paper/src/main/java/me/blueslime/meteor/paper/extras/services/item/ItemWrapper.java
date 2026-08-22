@@ -671,7 +671,6 @@ public class ItemWrapper implements Cloneable, PlatformService {
             String[] split = value.replace(" ", "").split(":", 4);
             FireworkEffect.Builder builder = FireworkEffect.builder();
 
-            // Note: PluginTools should exist in your project to map color names to org.bukkit.Color
             builder.withColor(Color.fromRGB(JavaColorUtils.getColor(split[0]).getRGB()));
 
             if (split.length >= 2) builder.flicker(Boolean.parseBoolean(split[1]));

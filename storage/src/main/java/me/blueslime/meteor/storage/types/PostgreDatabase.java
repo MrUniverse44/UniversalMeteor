@@ -92,9 +92,6 @@ public class PostgreDatabase extends SQLDatabase {
 
     @Override
     protected String buildJsonCondition(String key) {
-        // En PostgreSQL usamos la sintaxis ->> para extraer texto de un JSON
-        // Nota: asumiendo que tu columna json_data es tipo TEXT o VARCHAR,
-        // la casteamos a json:: para asegurarnos que funcione.
         return "CAST(`json_data` AS json)->>'" + key + "'";
     }
 
