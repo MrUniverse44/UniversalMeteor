@@ -2,6 +2,7 @@ package me.blueslime.meteor.paper.extras.item.compiler;
 
 import me.blueslime.meteor.paper.extras.actions.ActionService;
 
+import me.blueslime.meteor.paper.extras.animation.AnimationDefinition;
 import me.blueslime.meteor.paper.extras.conditions.ConditionService;
 import me.blueslime.meteor.paper.extras.conditions.runtime.ConditionMode;
 import me.blueslime.meteor.paper.extras.conditions.runtime.ConditionPlan;

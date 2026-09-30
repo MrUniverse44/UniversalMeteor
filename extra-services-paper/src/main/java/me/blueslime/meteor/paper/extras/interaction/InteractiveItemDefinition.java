@@ -1,6 +1,6 @@
 package me.blueslime.meteor.paper.extras.interaction;
 
-import me.blueslime.meteor.paper.extras.services.animation.AnimationDefinition;
+import me.blueslime.meteor.paper.extras.animation.AnimationDefinition;
 
 import me.blueslime.meteor.paper.extras.conditions.runtime.ConditionPlan;
 

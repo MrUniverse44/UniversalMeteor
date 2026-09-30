@@ -10,7 +10,6 @@ import me.blueslime.meteor.color.renders.ComponentRenderer;
 import me.blueslime.meteor.paper.extras.languages.LanguageService;
 import me.blueslime.meteor.paper.extras.scoreboard.animations.ScoreboardAnimation;
 import me.blueslime.meteor.paper.extras.scoreboard.animations.list.*;
-import me.blueslime.meteor.paper.extras.services.scoreboard.animations.list.*;
 import me.blueslime.meteor.paper.extras.scoreboard.handlers.list.DynamicScoreboardHandler;
 import me.blueslime.meteor.paper.extras.scoreboard.handlers.ScoreboardHandler;
 import me.blueslime.meteor.paper.extras.scoreboard.handlers.list.StaticScoreboardHandler;

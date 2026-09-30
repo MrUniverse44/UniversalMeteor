@@ -1881,6 +1881,665 @@ public class ItemWrapper
 
     /*
      * ------------------------------------------------------------------------
+     * Configuration overlay
+     * ------------------------------------------------------------------------
+     */
+
+    /**
+     * Applies only the item properties that exist in the given configuration.
+     *
+     * Unlike fromData(...), this method does NOT create a new ItemWrapper.
+     * Properties not present in the configuration keep their current value.
+     *
+     * This is especially useful for animation frames:
+     *
+     * base:
+     *   material: COMPASS
+     *   name: "&bSelector"
+     *   lore:
+     *     - "&7Hello"
+     *
+     * animation:
+     *   frames:
+     *     0:
+     *       material: CLOCK
+     *
+     * The frame inherits everything from the base item and only overrides
+     * the material.
+     */
+    public ItemWrapper applyData(
+            ConfigurationHandle configuration,
+            String path
+    ) {
+        return applyData(
+                configuration,
+                path,
+                TextReplacer.EMPTY
+        );
+    }
+
+    public ItemWrapper applyData(
+            ConfigurationHandle configuration,
+            String path,
+            TextReplacer replacer
+    ) {
+        if (configuration == null) {
+            return this;
+        }
+
+        ConfigurationHandle section =
+                configuration.getSection(
+                        path
+                );
+
+        return applyData(
+                section,
+                replacer
+        );
+    }
+
+    public ItemWrapper applyData(
+            ConfigurationHandle configuration
+    ) {
+        return applyData(
+                configuration,
+                TextReplacer.EMPTY
+        );
+    }
+
+    public ItemWrapper applyData(
+            ConfigurationHandle configuration,
+            TextReplacer replacer
+    ) {
+        if (configuration == null) {
+            return this;
+        }
+
+        TextReplacer effectiveReplacer =
+                replacer == null
+                        ? TextReplacer.EMPTY
+                        : replacer;
+
+        /*
+         * Material should always be processed first because material(...)
+         * may replace the underlying ItemStack.
+         */
+        if (
+                configuration.contains(
+                        "material"
+                )
+        ) {
+            String material =
+                    effectiveReplacer.apply(
+                            configuration.getString(
+                                    "material",
+                                    getMaterial().name()
+                            )
+                    );
+
+            material(
+                    material
+            );
+        }
+
+        if (
+                configuration.contains(
+                        "amount"
+                )
+        ) {
+            amount(
+                    configuration.getInt(
+                            "amount",
+                            getAmount()
+                    )
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Text templates
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "name"
+                )
+        ) {
+            String name =
+                    configuration.getString(
+                            "name"
+                    );
+
+            name(
+                    name == null
+                            ? null
+                            : effectiveReplacer.apply(
+                            name
+                    )
+            );
+        }
+
+        if (
+                configuration.contains(
+                        "lore"
+                )
+        ) {
+            lore(
+                    replaceList(
+                            effectiveReplacer,
+                            configuration.getStringList(
+                                    "lore"
+                            )
+                    )
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Skin
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "skin"
+                )
+        ) {
+            String skin =
+                    configuration.getString(
+                            "skin"
+                    );
+
+            skin(
+                    skin == null
+                            ? null
+                            : effectiveReplacer.apply(
+                            skin
+                    )
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Damage
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "damage"
+                )
+        ) {
+            damage(
+                    configuration.getInt(
+                            "damage",
+                            0
+                    )
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Enchantments
+         *
+         * For overlays, specifying enchantments means REPLACE,
+         * not append to the base frame.
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "enchantments"
+                )
+        ) {
+            clearEnchantments();
+
+            enchantments(
+                    replaceList(
+                            effectiveReplacer,
+                            configuration.getStringList(
+                                    "enchantments"
+                            )
+                    )
+            );
+        }
+
+        if (
+                configuration.contains(
+                        "stored-enchantments"
+                )
+        ) {
+            clearStoredEnchantments();
+
+            storedEnchantments(
+                    replaceList(
+                            effectiveReplacer,
+                            configuration.getStringList(
+                                    "stored-enchantments"
+                            )
+                    )
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * General ItemMeta
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "unbreakable"
+                )
+        ) {
+            unbreakable(
+                    configuration.getBoolean(
+                            "unbreakable",
+                            false
+                    )
+            );
+        }
+
+        if (
+                configuration.contains(
+                        "custom-model-data"
+                )
+        ) {
+            customModelData(
+                    configuration.getInt(
+                            "custom-model-data",
+                            0
+                    )
+            );
+        }
+
+        if (
+                configuration.contains(
+                        "item-flags"
+                )
+        ) {
+            clearItemFlags();
+
+            itemFlags(
+                    configuration.getStringList(
+                            "item-flags"
+                    )
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Armor
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "armor-color"
+                )
+        ) {
+            String value =
+                    configuration.getString(
+                            "armor-color"
+                    );
+
+            if (value != null) {
+                armorMeta(
+                        effectiveReplacer.apply(
+                                value
+                        )
+                );
+            }
+        }
+
+        if (
+                configuration.contains(
+                        "armor-trim.material"
+                )
+        ) {
+            String material =
+                    effectiveReplacer.apply(
+                            configuration.getString(
+                                    "armor-trim.material",
+                                    "diamond"
+                            )
+                    );
+
+            String pattern =
+                    effectiveReplacer.apply(
+                            configuration.getString(
+                                    "armor-trim.pattern",
+                                    "coast"
+                            )
+                    );
+
+            armorTrim(
+                    material,
+                    pattern
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Potion
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "potion-type"
+                ) ||
+                        configuration.contains(
+                                "potion-color"
+                        )
+        ) {
+            String potionType =
+                    configuration.contains(
+                            "potion-type"
+                    )
+                            ? effectiveReplacer.apply(
+                            configuration.getString(
+                                    "potion-type"
+                            )
+                    )
+                            : null;
+
+            String potionColor =
+                    configuration.contains(
+                            "potion-color"
+                    )
+                            ? effectiveReplacer.apply(
+                            configuration.getString(
+                                    "potion-color"
+                            )
+                    )
+                            : null;
+
+            potionMeta(
+                    potionType,
+                    potionColor
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Ominous bottle
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "ominous-level"
+                )
+        ) {
+            ominousLevel(
+                    configuration.getInt(
+                            "ominous-level",
+                            1
+                    )
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Banner / shield
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "banner-patterns"
+                )
+        ) {
+            bannerPatterns(
+                    replaceList(
+                            effectiveReplacer,
+                            configuration.getStringList(
+                                    "banner-patterns"
+                            )
+                    )
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Book
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "book"
+                )
+        ) {
+            String title =
+                    configuration.contains(
+                            "book.title"
+                    )
+                            ? effectiveReplacer.apply(
+                            configuration.getString(
+                                    "book.title"
+                            )
+                    )
+                            : getRawBookTitle();
+
+            String author =
+                    configuration.contains(
+                            "book.author"
+                    )
+                            ? effectiveReplacer.apply(
+                            configuration.getString(
+                                    "book.author"
+                            )
+                    )
+                            : getRawBookAuthor();
+
+            List<String> pages =
+                    configuration.contains(
+                            "book.pages"
+                    )
+                            ? replaceList(
+                            effectiveReplacer,
+                            configuration.getStringList(
+                                    "book.pages"
+                            )
+                    )
+                            : getRawBookPages();
+
+            /*
+             * bookMeta() itself preserves the raw templates.
+             */
+            bookMeta(
+                    title,
+                    author,
+                    pages
+            );
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Spawn egg
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "spawn-egg-type"
+                )
+        ) {
+            String type =
+                    configuration.getString(
+                            "spawn-egg-type"
+                    );
+
+            if (type != null) {
+                spawnEggMeta(
+                        effectiveReplacer.apply(
+                                type
+                        )
+                );
+            }
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Goat horn / instrument
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "music-instrument"
+                )
+        ) {
+            String instrument =
+                    configuration.getString(
+                            "music-instrument"
+                    );
+
+            if (instrument != null) {
+                musicInstrument(
+                        effectiveReplacer.apply(
+                                instrument
+                        )
+                );
+            }
+        }
+
+        /*
+         * --------------------------------------------------------------------
+         * Firework charge
+         * --------------------------------------------------------------------
+         */
+
+        if (
+                configuration.contains(
+                        "charge-color"
+                )
+        ) {
+            String charge =
+                    configuration.getString(
+                            "charge-color"
+                    );
+
+            if (charge != null) {
+                chargeMeta(
+                        effectiveReplacer.apply(
+                                charge
+                        )
+                );
+            }
+        }
+
+        /*
+         * Intentionally ignored:
+         *
+         * slot
+         * slots
+         * placement
+         * auto-equip
+         *
+         * visibility
+         * conditions
+         *
+         * actions
+         * interactions
+         *
+         * animation
+         * duration
+         * render-policy
+         *
+         * Those properties belong to the compiler/container layer,
+         * not ItemWrapper.
+         */
+
+        return this;
+    }
+
+    private void clearEnchantments() {
+        checkItem();
+
+        item.editMeta(meta -> {
+            List<Enchantment> enchantments =
+                    new ArrayList<>(
+                            meta
+                                    .getEnchants()
+                                    .keySet()
+                    );
+
+            for (
+                    Enchantment enchantment :
+                    enchantments
+            ) {
+                meta.removeEnchant(
+                        enchantment
+                );
+            }
+        });
+    }
+
+    private void clearStoredEnchantments() {
+        checkItem();
+
+        ItemMeta meta =
+                item.getItemMeta();
+
+        if (
+                !(meta instanceof EnchantmentStorageMeta)
+        ) {
+            return;
+        }
+
+        item.editMeta(
+                EnchantmentStorageMeta.class,
+                storage -> {
+                    List<Enchantment> enchantments =
+                            new ArrayList<>(
+                                    storage
+                                            .getStoredEnchants()
+                                            .keySet()
+                            );
+
+                    for (
+                            Enchantment enchantment :
+                            enchantments
+                    ) {
+                        storage.removeStoredEnchant(
+                                enchantment
+                        );
+                    }
+                }
+        );
+    }
+
+    private void clearItemFlags() {
+        checkItem();
+
+        item.editMeta(meta -> {
+            if (
+                    meta
+                            .getItemFlags()
+                            .isEmpty()
+            ) {
+                return;
+            }
+
+            ItemFlag[] flags =
+                    meta
+                            .getItemFlags()
+                            .toArray(
+                                    new ItemFlag[0]
+                            );
+
+            meta.removeItemFlags(
+                    flags
+            );
+        });
+    }
+
+    /*
+     * ------------------------------------------------------------------------
      * Configuration serialization
      * ------------------------------------------------------------------------
      */
