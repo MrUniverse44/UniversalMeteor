@@ -42,6 +42,7 @@ import me.blueslime.meteor.paper.extras.languages.LanguageService;
 
 import me.blueslime.meteor.paper.extras.runtime.ExecutionRuntimeService;
 
+import me.blueslime.meteor.paper.extras.runtime.compiler.CompilationReporter;
 import me.blueslime.meteor.paper.extras.runtime.context.ExecutionContext;
 import me.blueslime.meteor.paper.extras.runtime.context.ExecutionContextSnapshot;
 
@@ -198,12 +199,40 @@ public final class InventoryService implements PlatformService {
                         actions
                 );
 
+        CompilationReporter compilationReporter =
+                (
+                        type,
+                        id,
+                        path,
+                        exception
+                ) -> {
+                    getLogger().error(
+                            exception,
+                            "[Configuration] Disabled "
+                                    + type
+                                    + " '"
+                                    + id
+                                    + "' because it could not be compiled. "
+                                    + "Path: "
+                                    + path
+                                    + ". Reason: "
+                                    + rootMessage(
+                                    exception
+                            )
+                    );
+                };
+
+        ItemCompiler itemCompiler =
+                new ItemCompiler(
+                        actions,
+                        conditions,
+                        compilationReporter
+                );
+
         this.compiler =
                 new InventoryCompiler(
-                        new ItemCompiler(
-                                actions,
-                                conditions
-                        )
+                        itemCompiler,
+                        compilationReporter
                 );
 
         if (
@@ -228,41 +257,95 @@ public final class InventoryService implements PlatformService {
     }
 
     private void loadDefinitions() {
-        ConfigurationHandle configuration =
-                getPlugin()
-                        .getConfigurationProvider()
-                        .load(
-                                getFileOfDirectory(
-                                        settings.getFileName()
-                                ),
-                                settings.getResourcePath()
-                        );
+        try {
+            ConfigurationHandle configuration =
+                    getPlugin()
+                            .getConfigurationProvider()
+                            .load(
+                                    getFileOfDirectory(
+                                            settings.getFileName()
+                                    ),
+                                    settings.getResourcePath()
+                            );
 
-        InventoryLayout layout =
-                resolveLayout();
+            InventoryLayout layout =
+                    resolveLayout();
 
-        String fallbackLocale =
-                resolveFallbackLocale();
+            String fallbackLocale =
+                    resolveFallbackLocale();
 
-        /*
-         * IMPORTANT:
-         *
-         * compile first.
-         *
-         * If this throws, the old registry remains
-         * untouched during reload.
-         */
-        List<PlayerInventoryDefinition> definitions =
-                compiler.compile(
-                        configuration,
-                        settings.getRootPath(),
-                        layout
-                );
+            List<PlayerInventoryDefinition> definitions =
+                    compiler.compile(
+                            configuration,
+                            settings.getRootPath(),
+                            layout
+                    );
 
-        registry.replaceAll(
-                definitions,
-                fallbackLocale
-        );
+            /*
+             * Publication only happens AFTER compilation
+             * completed successfully.
+             *
+             * On reload, if a catastrophic file-level failure
+             * occurs, the old registry stays alive.
+             */
+            registry.replaceAll(
+                    definitions,
+                    fallbackLocale
+            );
+
+            getLogger().info(
+                    "Loaded "
+                            + definitions.size()
+                            + " inventory definition(s)"
+            );
+
+        } catch (
+                RuntimeException exception
+        ) {
+            getLogger().error(
+                    exception,
+                    "Unable to load inventories from '"
+                            + settings.getFileName()
+                            + "'. "
+                            + "The inventory service will remain active "
+                            + "and the previous registry will be preserved. "
+                            + "Reason: "
+                            + rootMessage(
+                            exception
+                    )
+            );
+        }
+    }
+
+    private String rootMessage(
+            Throwable throwable
+    ) {
+        if (throwable == null) {
+            return "Unknown error";
+        }
+
+        Throwable current =
+                throwable;
+
+        String last =
+                null;
+
+        while (current != null) {
+            if (
+                    current.getMessage() != null &&
+                            !current.getMessage().isBlank()
+            ) {
+                last =
+                        current.getMessage();
+            }
+
+            current =
+                    current.getCause();
+        }
+
+        return last != null
+                ? last
+                : throwable.getClass().getSimpleName();
     }
 
     private InventoryLayout resolveLayout() {

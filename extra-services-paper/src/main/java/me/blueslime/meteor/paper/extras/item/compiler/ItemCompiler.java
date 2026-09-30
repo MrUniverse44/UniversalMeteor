@@ -3,6 +3,7 @@ package me.blueslime.meteor.paper.extras.item.compiler;
 import me.blueslime.meteor.paper.extras.actions.ActionService;
 
 import me.blueslime.meteor.paper.extras.animation.AnimationDefinition;
+
 import me.blueslime.meteor.paper.extras.conditions.ConditionService;
 import me.blueslime.meteor.paper.extras.conditions.runtime.ConditionMode;
 import me.blueslime.meteor.paper.extras.conditions.runtime.ConditionPlan;
@@ -19,6 +20,7 @@ import me.blueslime.meteor.paper.extras.item.ItemWrapper;
 import me.blueslime.meteor.paper.extras.item.definition.ItemDefinition;
 import me.blueslime.meteor.paper.extras.item.definition.ItemRenderPolicy;
 
+import me.blueslime.meteor.paper.extras.runtime.compiler.CompilationReporter;
 import me.blueslime.meteor.platforms.api.configuration.handle.ConfigurationHandle;
 
 import java.util.LinkedHashMap;
@@ -37,6 +39,8 @@ public final class ItemCompiler {
 
     private final ItemAnimationCompiler animations;
 
+    private final CompilationReporter reporter;
+
     public ItemCompiler(
             ActionService actions,
             ConditionService conditions
@@ -45,17 +49,48 @@ public final class ItemCompiler {
                 new ItemCompileContext(
                         actions,
                         conditions
-                )
+                ),
+                CompilationReporter.noop()
+        );
+    }
+
+    public ItemCompiler(
+            ActionService actions,
+            ConditionService conditions,
+            CompilationReporter reporter
+    ) {
+        this(
+                new ItemCompileContext(
+                        actions,
+                        conditions
+                ),
+                reporter
         );
     }
 
     public ItemCompiler(
             ItemCompileContext context
     ) {
+        this(
+                context,
+                CompilationReporter.noop()
+        );
+    }
+
+    public ItemCompiler(
+            ItemCompileContext context,
+            CompilationReporter reporter
+    ) {
         this.context =
                 Objects.requireNonNull(
                         context,
                         "context"
+                );
+
+        this.reporter =
+                Objects.requireNonNull(
+                        reporter,
+                        "reporter"
                 );
 
         this.placements =
@@ -72,17 +107,6 @@ public final class ItemCompiler {
                 );
     }
 
-    /**
-     * Uses the final segment of path as item id.
-     *
-     * Example:
-     *
-     * items.selector.survival
-     *
-     * becomes:
-     *
-     * survival
-     */
     public InteractiveItemDefinition compile(
             ConfigurationHandle configuration,
             String path
@@ -94,9 +118,6 @@ public final class ItemCompiler {
         );
     }
 
-    /**
-     * Main compilation entry point.
-     */
     public InteractiveItemDefinition compile(
             ConfigurationHandle configuration,
             String path,
@@ -127,10 +148,6 @@ public final class ItemCompiler {
         }
 
         try {
-            /*
-             * ItemWrapper reads ONLY visual/item
-             * metadata now.
-             */
             ItemWrapper wrapper =
                     ItemWrapper.fromData(
                             configuration,
@@ -149,11 +166,6 @@ public final class ItemCompiler {
                             renderPolicy
                     );
 
-            /*
-             * Legacy root conditions and modern
-             * visibility.conditions both become
-             * visibility.
-             */
             ConditionPlan visibility =
                     compileVisibility(
                             configuration,
@@ -205,26 +217,24 @@ public final class ItemCompiler {
         ) {
             throw exception;
 
-        } catch (Throwable throwable) {
+        } catch (
+                RuntimeException exception
+        ) {
             throw new ItemCompileException(
                     path,
                     "Unable to compile item '"
                             + itemId
                             + "'",
-                    throwable
+                    exception
             );
         }
     }
 
     /**
-     * Useful for:
+     * Compiles every child independently.
      *
-     * menus:
-     *   items:
-     *     one:
-     *     two:
-     *
-     * or inventory definitions.
+     * Invalid items are reported and ignored.
+     * Valid siblings continue compiling.
      */
     public Map<
             String,
@@ -247,12 +257,6 @@ public final class ItemCompiler {
             );
         }
 
-        Map<
-                String,
-                InteractiveItemDefinition
-                > result =
-                new LinkedHashMap<>();
-
         if (
                 !configuration.contains(
                         rootPath
@@ -260,6 +264,12 @@ public final class ItemCompiler {
         ) {
             return Map.of();
         }
+
+        Map<
+                String,
+                InteractiveItemDefinition
+                > result =
+                new LinkedHashMap<>();
 
         for (
                 String itemId :
@@ -273,25 +283,27 @@ public final class ItemCompiler {
                             + "."
                             + itemId;
 
-            InteractiveItemDefinition definition =
-                    compile(
-                            configuration,
-                            path,
-                            itemId
-                    );
+            try {
+                InteractiveItemDefinition definition =
+                        compile(
+                                configuration,
+                                path,
+                                itemId
+                        );
 
-            InteractiveItemDefinition previous =
-                    result.put(
-                            itemId,
-                            definition
-                    );
+                result.put(
+                        itemId,
+                        definition
+                );
 
-            if (previous != null) {
-                throw new ItemCompileException(
+            } catch (
+                    RuntimeException exception
+            ) {
+                reporter.report(
+                        "item",
+                        itemId,
                         path,
-                        "Duplicate item id '"
-                                + itemId
-                                + "'"
+                        exception
                 );
             }
         }
@@ -309,9 +321,6 @@ public final class ItemCompiler {
                 path
                         + ".visibility.conditions";
 
-        /*
-         * Modern configuration has priority.
-         */
         if (
                 configuration.contains(
                         modernPath
@@ -332,17 +341,6 @@ public final class ItemCompiler {
             );
         }
 
-        /*
-         * Legacy:
-         *
-         * conditions:
-         *   - "[permission] ..."
-         *
-         * Historically this decided whether
-         * getUserItem() returned null.
-         *
-         * Therefore it maps to visibility.
-         */
         String legacyPath =
                 path
                         + ".conditions";
@@ -389,11 +387,13 @@ public final class ItemCompiler {
                     mode
             );
 
-        } catch (Throwable throwable) {
+        } catch (
+                RuntimeException exception
+        ) {
             throw new ItemCompileException(
                     path,
                     "Unable to compile visibility conditions",
-                    throwable
+                    exception
             );
         }
     }
@@ -448,13 +448,7 @@ public final class ItemCompiler {
             ConfigurationHandle configuration,
             String path
     ) {
-        String policyPath =
-                path + ".policy";
-
-        /*
-         * Modern keys have priority, with legacy
-         * allow-item-* keys as fallback.
-         */
+        String policyPath = path + ".policy";
 
         boolean allowMove =
                 readBoolean(

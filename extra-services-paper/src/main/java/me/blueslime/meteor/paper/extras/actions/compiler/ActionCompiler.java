@@ -86,21 +86,52 @@ public final class ActionCompiler {
                         source.size()
                 );
 
+        int index =
+                0;
+
         for (String raw : source) {
             if (
                     raw == null ||
                             raw.isBlank()
             ) {
+                index++;
                 continue;
             }
 
-            compiled.add(
-                    compileNode(
-                            parser.parse(
-                                    raw
-                            )
-                    )
-            );
+            try {
+                compiled.add(
+                        compileRaw(
+                                raw
+                        )
+                );
+
+            } catch (
+                    ActionCompileException exception
+            ) {
+                throw new ActionCompileException(
+                        "Unable to compile action #"
+                                + index
+                                + " ('"
+                                + raw
+                                + "'): "
+                                + exception.getMessage(),
+                        exception
+                );
+
+            } catch (
+                    RuntimeException exception
+            ) {
+                throw new ActionCompileException(
+                        "Unable to compile action #"
+                                + index
+                                + " ('"
+                                + raw
+                                + "')",
+                        exception
+                );
+            }
+
+            index++;
         }
 
         if (compiled.isEmpty()) {
@@ -124,10 +155,8 @@ public final class ActionCompiler {
 
         return new ActionPlan(
                 List.of(
-                        compileNode(
-                                parser.parse(
-                                        raw
-                                )
+                        compileRaw(
+                                raw
                         )
                 )
         );
@@ -136,13 +165,53 @@ public final class ActionCompiler {
     public ActionPlan compileInline(
             String input
     ) {
-        List<String> source =
-                parser.splitInline(
-                        input
-                );
+        try {
+            return compile(
+                    parser.splitInline(
+                            input
+                    )
+            );
 
-        return compile(
-                source
+        } catch (
+                ActionCompileException exception
+        ) {
+            throw exception;
+
+        } catch (
+                RuntimeException exception
+        ) {
+            throw new ActionCompileException(
+                    "Unable to compile inline actions: "
+                            + input,
+                    exception
+            );
+        }
+    }
+
+    private CompiledAction compileRaw(
+            String raw
+    ) {
+        ActionNode node;
+
+        try {
+            node =
+                    parser.parse(
+                            raw
+                    );
+
+        } catch (
+                RuntimeException exception
+        ) {
+            throw new ActionCompileException(
+                    "Unable to parse action '"
+                            + raw
+                            + "'",
+                    exception
+            );
+        }
+
+        return compileNode(
+                node
         );
     }
 
@@ -174,17 +243,6 @@ public final class ActionCompiler {
                             "Compiled ActionInstruction"
                     );
 
-            /*
-             * Global modifiers such as:
-             *
-             * after
-             * timeout
-             * retry
-             * ...
-             *
-             * are added AFTER the action has compiled its
-             * own behavior.
-             */
             instruction =
                     decorators.decorate(
                             node,

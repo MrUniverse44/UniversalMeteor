@@ -254,37 +254,91 @@ public final class MenuService
                 getPlugin()
                         .getConfigurationProvider();
 
-        List<MenuDefinition> definitions =
-                new ArrayList<>();
+        Map<String, MenuDefinition> compiled =
+                new LinkedHashMap<>();
 
-        /*
-         * Compile EVERYTHING first.
-         *
-         * registry.replaceAll() is only called
-         * if every file compiled successfully.
-         */
         for (File file : files) {
-            String id =
+            String menuId =
                     removeExtension(
                             file.getName()
                     );
 
-            ConfigurationHandle configuration =
-                    provider.load(
-                            file
-                    );
+            try {
+                ConfigurationHandle configuration =
+                        provider.load(
+                                file
+                        );
 
-            definitions.add(
-                    compiler.compile(
-                            id,
-                            configuration
-                    )
-            );
+                MenuDefinition definition =
+                        compiler.compile(
+                                menuId,
+                                configuration
+                        );
+
+                compiled.put(
+                        menuId,
+                        definition
+                );
+
+                getLogger().info(
+                        "Loaded menu '"
+                                + menuId
+                                + "'"
+                );
+
+            } catch (
+                    RuntimeException exception
+            ) {
+                getLogger().error(
+                        exception,
+                        "[Configuration] Menu '"
+                            + menuId
+                            + "' was disabled because it could not be compiled. "
+                            + "File: "
+                            + file.getName()
+                            + ". Reason: "
+                            + rootMessage(exception)
+                );
+            }
         }
 
+        /*
+         * Only valid menus enter the registry.
+         */
         registry.replaceAll(
-                definitions
+                compiled.values()
         );
+    }
+
+    private String rootMessage(
+            Throwable throwable
+    ) {
+        if (throwable == null) {
+            return "Unknown error";
+        }
+
+        Throwable current =
+                throwable;
+
+        String last =
+                null;
+
+        while (current != null) {
+            if (
+                    current.getMessage() != null &&
+                            !current.getMessage().isBlank()
+            ) {
+                last =
+                        current.getMessage();
+            }
+
+            current =
+                    current.getCause();
+        }
+
+        return last != null
+                ? last
+                : throwable.getClass().getSimpleName();
     }
 
     public Optional<MenuDefinition> find(

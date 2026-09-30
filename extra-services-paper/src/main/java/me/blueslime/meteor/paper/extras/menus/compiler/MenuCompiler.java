@@ -145,11 +145,11 @@ public final class MenuCompiler {
         ) {
             throw exception;
 
-        } catch (Throwable throwable) {
+        } catch (RuntimeException exception) {
             throw new MenuCompileException(
                     menuId,
                     "Unable to compile menu",
-                    throwable
+                    exception
             );
         }
     }
