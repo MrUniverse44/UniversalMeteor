@@ -19,7 +19,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import org.bukkit.inventory.ItemStack;
-
 import org.bukkit.inventory.meta.BookMeta;
 
 import java.util.ArrayList;
@@ -27,7 +26,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-public final class ItemRenderer implements PlatformService {
+public final class ItemRenderer
+        implements PlatformService {
 
     private final ExecutionTextResolver textResolver;
 
@@ -66,6 +66,16 @@ public final class ItemRenderer implements PlatformService {
             return definition.createBaseItem();
         }
 
+        /*
+         * Context resolution can happen before entering
+         * Bukkit's primary thread.
+         *
+         * Examples:
+         *
+         * <player>
+         * <itemId>
+         * ${scopeValue}
+         */
         PreparedItem prepared =
                 prepare(
                         definition,
@@ -94,11 +104,8 @@ public final class ItemRenderer implements PlatformService {
     }
 
     /**
-     * Useful for MenuSession.
-     *
-     * When MenuSession is already inside ONE sync
-     * operation, every item can be rendered without
-     * producing another bridge request.
+     * Useful when the caller is already executing
+     * on Bukkit's primary thread.
      */
     public ItemStack renderSync(
             ItemDefinition definition,
@@ -128,6 +135,7 @@ public final class ItemRenderer implements PlatformService {
                 )
         );
     }
+
 
     private PreparedItem prepare(
             ItemDefinition definition,
@@ -166,6 +174,12 @@ public final class ItemRenderer implements PlatformService {
         );
     }
 
+    /*
+     * ------------------------------------------------------------------------
+     * Final runtime render
+     * ------------------------------------------------------------------------
+     */
+
     private ItemStack renderPrepared(
             ItemDefinition definition,
             Player player,
@@ -174,129 +188,192 @@ public final class ItemRenderer implements PlatformService {
         ItemStack item =
                 definition.createBaseItem();
 
-        if (
-                prepared.name() != null ||
-                        !prepared.lore().isEmpty()
-        ) {
-            item.editMeta(meta -> {
-                if (
-                        prepared.name() != null
-                ) {
-                    meta.displayName(
-                            ComponentRenderer.translate(
-                                    resolvePapi(
-                                            player,
-                                            prepared.name()
-                                    )
-                            )
-                    );
-                }
+        applyDisplayMeta(
+                item,
+                player,
+                prepared
+        );
 
-                if (
-                        !prepared.lore()
-                                .isEmpty()
-                ) {
-                    meta.lore(
-                            prepared.lore()
-                                    .stream()
-                                    .map(line ->
-                                            resolvePapi(
-                                                    player,
-                                                    line
-                                            )
-                                    )
-                                    .map(
-                                            ComponentRenderer::translate
-                                    )
-                                    .toList()
-                    );
-                }
-            });
-        }
+        applyBookMeta(
+                item,
+                player,
+                prepared
+        );
 
-        if (
-                prepared.bookTitle() != null ||
-                        prepared.bookAuthor() != null ||
-                        !prepared.bookPages()
-                                .isEmpty()
-        ) {
-            item.editMeta(
-                    BookMeta.class,
-                    meta -> {
-                        if (
-                                prepared.bookTitle()
-                                        != null
-                        ) {
-                            meta.title(
-                                    ComponentRenderer.translate(
-                                            resolvePapi(
-                                                    player,
-                                                    prepared.bookTitle()
-                                            )
-                                    )
-                            );
-                        }
-
-                        if (
-                                prepared.bookAuthor()
-                                        != null
-                        ) {
-                            meta.author(
-                                    ComponentRenderer.translate(
-                                            resolvePapi(
-                                                    player,
-                                                    prepared.bookAuthor()
-                                            )
-                                    )
-                            );
-                        }
-
-                        if (
-                                !prepared.bookPages()
-                                        .isEmpty()
-                        ) {
-                            meta.pages(
-                                    prepared.bookPages()
-                                            .stream()
-                                            .map(page ->
-                                                    resolvePapi(
-                                                            player,
-                                                            page
-                                                    )
-                                            )
-                                            .map(
-                                                    ComponentRenderer::translate
-                                            )
-                                            .toList()
-                            );
-                        }
-                    }
-            );
-        }
-
-        /*
-         * Reapply skin only when its resolved source
-         * differs from the stored static template.
-         *
-         * Useful for:
-         *
-         * skin: "player:<player>"
-         */
-        if (
-                prepared.skin() != null &&
-                        !prepared.skin().isBlank() &&
-                        !prepared.skin().equals(
-                                definition.skinTemplate()
-                        )
-        ) {
-            skinService.applyTexture(
-                    item,
-                    prepared.skin()
-            );
-        }
+        applySkin(
+                item,
+                player,
+                prepared.skin()
+        );
 
         return item;
     }
+
+    private void applyDisplayMeta(
+            ItemStack item,
+            Player player,
+            PreparedItem prepared
+    ) {
+        if (
+                prepared.name() == null &&
+                        prepared.lore().isEmpty()
+        ) {
+            return;
+        }
+
+        item.editMeta(meta -> {
+            if (
+                    prepared.name() != null
+            ) {
+                String resolvedName =
+                        resolvePapi(
+                                player,
+                                prepared.name()
+                        );
+
+                meta.displayName(
+                        ComponentRenderer.translate(
+                                resolvedName
+                        )
+                );
+            }
+
+            if (
+                    !prepared.lore()
+                            .isEmpty()
+            ) {
+                meta.lore(
+                        prepared.lore()
+                                .stream()
+                                .map(line ->
+                                        resolvePapi(
+                                                player,
+                                                line
+                                        )
+                                )
+                                .map(
+                                        ComponentRenderer::translate
+                                )
+                                .toList()
+                );
+            }
+        });
+    }
+
+    private void applyBookMeta(
+            ItemStack item,
+            Player player,
+            PreparedItem prepared
+    ) {
+        if (
+                prepared.bookTitle() == null &&
+                        prepared.bookAuthor() == null &&
+                        prepared.bookPages().isEmpty()
+        ) {
+            return;
+        }
+
+        item.editMeta(
+                BookMeta.class,
+                meta -> {
+                    if (
+                            prepared.bookTitle() != null
+                    ) {
+                        meta.title(
+                                ComponentRenderer.translate(
+                                        resolvePapi(
+                                                player,
+                                                prepared.bookTitle()
+                                        )
+                                )
+                        );
+                    }
+
+                    if (
+                            prepared.bookAuthor() != null
+                    ) {
+                        meta.author(
+                                ComponentRenderer.translate(
+                                        resolvePapi(
+                                                player,
+                                                prepared.bookAuthor()
+                                        )
+                                )
+                        );
+                    }
+
+                    if (
+                            !prepared.bookPages()
+                                    .isEmpty()
+                    ) {
+                        meta.pages(
+                                prepared.bookPages()
+                                        .stream()
+                                        .map(page ->
+                                                resolvePapi(
+                                                        player,
+                                                        page
+                                                )
+                                        )
+                                        .map(
+                                                ComponentRenderer::translate
+                                        )
+                                        .toList()
+                        );
+                    }
+                }
+        );
+    }
+
+    private void applySkin(
+            ItemStack item,
+            Player player,
+            String skinTemplate
+    ) {
+        if (
+                skinTemplate == null ||
+                        skinTemplate.isBlank()
+        ) {
+            return;
+        }
+
+        /*
+         * prepare() already resolved:
+         *
+         * <player>
+         * ${scopeValue}
+         * <itemId>
+         * etc.
+         *
+         * PAPI needs the live Player and is resolved here:
+         *
+         * %player_name%
+         * %player_world%
+         * ...
+         */
+        String resolvedSkin =
+                resolvePapi(
+                        player,
+                        skinTemplate
+                );
+
+        if (
+                resolvedSkin == null ||
+                        resolvedSkin.isBlank()
+        ) {
+            return;
+        }
+
+        /*
+         * ItemSkinService receives ONLY the final
+         * runtime value.
+         */
+        skinService.applyTexture(
+                item,
+                resolvedSkin
+        );
+    }
+
 
     private String resolveContext(
             ExecutionContext context,
@@ -346,11 +423,21 @@ public final class ItemRenderer implements PlatformService {
             Player player,
             String input
     ) {
+        if (input == null) {
+            return null;
+        }
+
         return textResolver.resolvePlaceholders(
                 player,
                 input
         );
     }
+
+    /*
+     * ------------------------------------------------------------------------
+     * Prepared runtime data
+     * ------------------------------------------------------------------------
+     */
 
     private record PreparedItem(
             String name,
@@ -365,12 +452,16 @@ public final class ItemRenderer implements PlatformService {
 
         private PreparedItem {
             lore =
-                    List.copyOf(
+                    lore == null
+                            ? List.of()
+                            : List.copyOf(
                             lore
                     );
 
             bookPages =
-                    List.copyOf(
+                    bookPages == null
+                            ? List.of()
+                            : List.copyOf(
                             bookPages
                     );
         }

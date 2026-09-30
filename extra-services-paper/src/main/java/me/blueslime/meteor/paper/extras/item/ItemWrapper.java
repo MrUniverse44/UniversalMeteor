@@ -302,7 +302,11 @@ public class ItemWrapper
                 !rawLore.isEmpty() ||
                 rawBookTitle != null ||
                 rawBookAuthor != null ||
-                !rawBookPages.isEmpty();
+                !rawBookPages.isEmpty() ||
+                (
+                        skinSource != null &&
+                                !skinSource.isBlank()
+                );
     }
 
     public ItemWrapper material(
@@ -465,49 +469,6 @@ public class ItemWrapper
         return lore(
                 Collections.emptyList()
         );
-    }
-
-    public ItemWrapper skin(
-            String value
-    ) {
-        if (
-                value == null ||
-                        value.isBlank()
-        ) {
-            this.skinSource =
-                    null;
-
-            return this;
-        }
-
-        int amount =
-                item == null
-                        ? 1
-                        : item.getAmount();
-
-        if (
-                item == null ||
-                        item.getType()
-                                != Material.PLAYER_HEAD
-        ) {
-            item =
-                    new ItemStack(
-                            Material.PLAYER_HEAD,
-                            amount
-                    );
-        }
-
-        this.skinSource =
-                value;
-
-        fetch(
-                ItemSkinService.class
-        ).applyTexture(
-                item,
-                value
-        );
-
-        return this;
     }
 
     public ItemWrapper enchantments(
@@ -3017,22 +2978,20 @@ public class ItemWrapper
                         clean
                 )
         ) {
-            ItemStack head =
-                    new ItemStack(
-                            Material.PLAYER_HEAD
-                    );
-
+            /*
+             * Legacy syntax:
+             *
+             * material: player:Notch
+             * material: texture:<base64>
+             *
+             * Preserve it as a runtime skin template.
+             */
             this.skinSource =
                     clean;
 
-            fetch(
-                    ItemSkinService.class
-            ).applyTexture(
-                    head,
-                    clean
+            return new ItemStack(
+                    Material.PLAYER_HEAD
             );
-
-            return head;
         }
 
         /*
@@ -3121,6 +3080,56 @@ public class ItemWrapper
                         clean
                 )
         );
+    }
+
+    public ItemWrapper skin(String value) {
+        if (
+                value == null ||
+                        value.isBlank()
+        ) {
+            this.skinSource =
+                    null;
+
+            return this;
+        }
+
+        int amount =
+                item == null
+                        ? 1
+                        : Math.max(
+                        1,
+                        item.getAmount()
+                );
+
+        /*
+         * A skin is a runtime template.
+         *
+         * Examples:
+         *
+         * %player_name%
+         * <player>
+         * ${skin}
+         * player:Notch
+         * texture:<base64>
+         *
+         * Do NOT resolve/apply it here.
+         */
+        if (
+                item == null ||
+                        item.getType()
+                                != Material.PLAYER_HEAD
+        ) {
+            item =
+                    new ItemStack(
+                            Material.PLAYER_HEAD,
+                            amount
+                    );
+        }
+
+        this.skinSource =
+                value;
+
+        return this;
     }
 
     private Material parseMaterial(
