@@ -393,7 +393,7 @@ public final class MainThreadBridge {
                         .getLogger()
                         .log(
                                 Level.WARNING,
-                                "Slow MainThreadBridge operation '"
+                                "}Slow MainThreadBridge operation '"
                                         + request.debugName()
                                         + "' took "
                                         + (

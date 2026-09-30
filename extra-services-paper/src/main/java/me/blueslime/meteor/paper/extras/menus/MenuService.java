@@ -125,11 +125,6 @@ public final class MenuService
                         )
                         .factory();
 
-        this.animations =
-                fetch(
-                        AnimationService.class
-                );
-
         this.executor =
                 Executors.newThreadPerTaskExecutor(
                         factory
@@ -151,6 +146,11 @@ public final class MenuService
         ) {
             return;
         }
+
+        this.animations =
+                fetch(
+                        AnimationService.class
+                );
 
         this.runtime =
                 fetch(
@@ -704,9 +704,6 @@ public final class MenuService
                 session.getInventory()
         );
 
-        /*
-         * Another plugin may cancel opening.
-         */
         if (
                 player
                         .getOpenInventory()
@@ -730,8 +727,13 @@ public final class MenuService
             );
         }
 
+        /*
+         * Register exactly the same visible definitions
+         * that were successfully prepared and placed.
+         */
         registerAnimations(
-            session
+                session,
+                visible
         );
 
         return MenuOpenResult.opened(
@@ -740,15 +742,28 @@ public final class MenuService
     }
 
     private void registerAnimations(
-            MenuSession session
+            MenuSession session,
+            Collection<PreparedMenuItem> items
     ) {
-        for (
-                InteractiveItemDefinition definition :
-                session.boundItems()
+        if (
+                session == null ||
+                        items == null ||
+                        items.isEmpty()
         ) {
+            return;
+        }
+
+        for (
+                PreparedMenuItem prepared :
+                items
+        ) {
+            if (prepared == null) {
+                continue;
+            }
+
             registerAnimation(
                     session,
-                    definition
+                    prepared.definition()
             );
         }
     }
@@ -1224,7 +1239,8 @@ public final class MenuService
                                             );
 
                                     registerAnimations(
-                                            session
+                                            session,
+                                            visible
                                     );
 
                                     return true;
