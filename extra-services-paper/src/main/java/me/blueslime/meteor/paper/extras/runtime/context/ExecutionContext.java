@@ -27,12 +27,16 @@ public final class ExecutionContext {
 
     private final MainThreadBridge mainThread;
 
+    private final ExecutionScope scope;
+
     private ExecutionContext(
+            ExecutionScope scope,
             ExecutionValues values,
             ExecutionVariables variables,
             CancellationToken cancellation,
             MainThreadBridge mainThread
     ) {
+        this.scope = scope;
         this.values = values;
         this.variables = variables;
         this.cancellation = cancellation;
@@ -64,6 +68,10 @@ public final class ExecutionContext {
         return values.contains(
                 key
         );
+    }
+
+    public ExecutionScope scope() {
+        return scope;
     }
 
     public ExecutionValues values() {
@@ -253,6 +261,9 @@ public final class ExecutionContext {
         private CancellationToken cancellation =
                 new CancellationToken();
 
+        private ExecutionScope scope =
+                new ExecutionScope();
+
         private Builder(
                 MainThreadBridge mainThread
         ) {
@@ -277,6 +288,26 @@ public final class ExecutionContext {
             variables.putAll(
                     snapshot.variables()
             );
+
+            return this;
+        }
+
+        public Builder inherit(
+                ExecutionContext context
+        ) {
+            if (context == null) {
+                return this;
+            }
+
+            inherit(
+                    context.snapshot()
+            );
+
+            this.scope =
+                    context.scope();
+
+            this.cancellation =
+                    context.cancellation();
 
             return this;
         }
@@ -353,6 +384,18 @@ public final class ExecutionContext {
             return this;
         }
 
+        public Builder scope(
+                ExecutionScope scope
+        ) {
+            this.scope =
+                    Objects.requireNonNull(
+                            scope,
+                            "scope"
+                    );
+
+            return this;
+        }
+
         public Builder location(
                 Location location
         ) {
@@ -395,6 +438,7 @@ public final class ExecutionContext {
 
         public ExecutionContext build() {
             return new ExecutionContext(
+                    scope,
                     new ExecutionValues(
                             values
                     ),
