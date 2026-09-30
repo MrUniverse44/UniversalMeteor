@@ -19,4 +19,4 @@ jobs:
           distribution: 'temurin'
 
       - name: Verify build
-        run: mvn clean build
+        run: mvn package
