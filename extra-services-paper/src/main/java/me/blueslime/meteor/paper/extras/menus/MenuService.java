@@ -784,10 +784,12 @@ public final class MenuService
 
                     @Override
                     public boolean active() {
+
                         return session.isActive()
-                                && sessions.get(
-                                session.playerId()
-                        ) == session;
+                                &&
+                                sessions.get(
+                                        session.playerId()
+                                ) == session;
                     }
 
                     @Override

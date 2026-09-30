@@ -97,35 +97,30 @@ public final class AnimationService
             AnimationTarget target
     ) {
         Objects.requireNonNull(
-                groupId
+                groupId,
+                "groupId"
         );
 
         Objects.requireNonNull(
-                key
+                key,
+                "key"
         );
 
         Objects.requireNonNull(
-                definition
+                definition,
+                "definition"
         );
 
         Objects.requireNonNull(
-                target
+                target,
+                "target"
         );
-
-        if (!definition.enabled()) {
-            return new AnimationHandle(
-                    UUID.randomUUID(),
-                    groupId,
-                    key,
-                    this
-            );
-        }
-
-        UUID id =
-                UUID.randomUUID();
 
         String normalizedKey =
                 normalize(key);
+
+        UUID id =
+                UUID.randomUUID();
 
         AnimationHandle handle =
                 new AnimationHandle(
@@ -134,6 +129,36 @@ public final class AnimationService
                         normalizedKey,
                         this
                 );
+
+        if (!definition.enabled()) {
+            handle.markCancelled();
+
+            return handle;
+        }
+
+        /*
+         * This is a SERVICE/LIFECYCLE programming error,
+         * not a configuration error.
+         *
+         * Never silently discard an animation.
+         */
+        if (!running.get()) {
+            handle.markCancelled();
+
+            getLogger().error(
+                    "[Animation] Unable to register animation '"
+                            + normalizedKey
+                            + "' for group "
+                            + groupId
+                            + ": AnimationService is not running. "
+                            + "Service instance="
+                            + Integer.toHexString(
+                            System.identityHashCode(this)
+                    )
+            );
+
+            return handle;
+        }
 
         Runnable command =
                 () ->
@@ -361,10 +386,16 @@ public final class AnimationService
 
             } catch (Throwable throwable) {
                 getLogger().error(
-                        "Animation '"
+                        throwable,
+                        "[Animation] Animation '"
                                 + instance.key()
-                                + "' failed: "
-                                + throwable.getMessage()
+                                + "' failed. "
+                                + "group="
+                                + instance.groupId()
+                                + ", id="
+                                + instance.id()
+                                + ", tick="
+                                + currentTick
                 );
 
                 keep = false;
@@ -404,13 +435,24 @@ public final class AnimationService
 
             } catch (Throwable throwable) {
                 getLogger().error(
-                        "Animation command failed: "
-                                + throwable.getMessage()
+                        throwable,
+                        "[Animation] Animation command failed at tick "
+                                + currentTick
                 );
             }
 
             processed++;
         }
+    }
+
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    public String instanceId() {
+        return Integer.toHexString(
+                System.identityHashCode(this)
+        );
     }
 
     private void removeInstance(
@@ -461,12 +503,26 @@ public final class AnimationService
     private void submitCommand(
             Runnable command
     ) {
+        Objects.requireNonNull(
+                command,
+                "command"
+        );
+
         if (!running.get()) {
+            getLogger().warn(
+                    "[Animation] Ignoring animation command because "
+                            + "AnimationService is not running. instance="
+                            + Integer.toHexString(
+                            System.identityHashCode(this)
+                    )
+            );
+
             return;
         }
 
         if (Bukkit.isPrimaryThread()) {
             command.run();
+
             return;
         }
 
