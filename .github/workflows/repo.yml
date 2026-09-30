@@ -1,4 +1,4 @@
-name: Maven Deploy to Nexus
+name: Maven Build Verification
 on:
   push:
     branches:
@@ -18,39 +18,5 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Custom settings.xml archive
-        run: |
-          cat <<EOF > ~/.m2/settings.xml
-          <settings>
-            <servers>
-              <server>
-                <id>blueslime</id>
-                <username>${{ secrets.PANELNAME }}</username>
-                <password>${{ secrets.PANELPASSWORD }}</password>
-              </server>
-              <server>
-                <id>blueslime-releases</id>
-                <username>${{ secrets.PANELNAME }}</username>
-                <password>${{ secrets.PANELPASSWORD }}</password>
-              </server>
-              <server>
-                <id>blueslime-snapshots</id>
-                <username>${{ secrets.PANELNAME }}</username>
-                <password>${{ secrets.PANELPASSWORD }}</password>
-              </server>
-            </servers>
-            <profiles>
-              <profile>
-                <id>nexus</id>
-                <activation>
-                  <activeByDefault>true</activeByDefault>
-                </activation>
-                <repositories>
-                </repositories>
-              </profile>
-            </profiles>
-          </settings>
-          EOF
-
-      - name: Deploy to blueslime releases repo
-        run: mvn clean deploy -U -s ~/.m2/settings.xml -Dmaven.wagon.http.ssl.insecure=true -DskipTests
+      - name: Verify build
+        run: mvn clean build
