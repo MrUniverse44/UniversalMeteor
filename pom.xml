@@ -44,14 +44,14 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
         <!-- Dependencies versions -->
-        <adventure.version>4.26.1</adventure.version>
+        <adventure.version>5.2.0</adventure.version>
         <configurate.version>4.1.2</configurate.version>
         <mongodb.version>3.12.14</mongodb.version>
         <jedis.version>5.2.0</jedis.version>
-        <hikari.version>5.1.0</hikari.version>
+        <hikari.version>7.1.0</hikari.version>
         <mysql.version>8.0.33</mysql.version>
         <sqlite.version>3.42.0.0</sqlite.version>
-        <postgresql.version>42.7.1</postgresql.version>
+        <postgresql.version>42.7.13</postgresql.version>
         
         <!-- Jackson versions -->
         <jackson.version>2.16.1</jackson.version>
