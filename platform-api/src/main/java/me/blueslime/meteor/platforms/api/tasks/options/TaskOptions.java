@@ -3,31 +3,92 @@ package me.blueslime.meteor.platforms.api.tasks.options;
 import me.blueslime.meteor.platforms.api.tasks.priority.TaskPriority;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Immutable scheduling options with a builder. Use TaskOptions.builder() or<br>
- * the provided syncBuilder()/asyncBuilder() shortcuts to create options.
- */
 public final class TaskOptions {
 
     private final boolean sync;
+
     private final long delay;
+    private final TimeUnit delayUnit;
+
     private final long repeatDelay;
-    private final TimeUnit timeUnit;
+    private final TimeUnit repeatUnit;
+
+    private final RepeatMode repeatMode;
+
     private final TaskPriority priority;
+
     private final String name;
+
     private final Map<String, Object> metadata;
 
-    private TaskOptions(boolean sync, long delay, long repeatDelay, TimeUnit timeUnit, TaskPriority priority, String name, Map<String, Object> metadata) {
-        this.sync = sync;
-        this.delay = delay;
-        this.repeatDelay = repeatDelay;
-        this.timeUnit = timeUnit;
-        this.priority = priority;
-        this.name = name;
-        this.metadata = metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+    private TaskOptions(
+            boolean sync,
+
+            long delay,
+            TimeUnit delayUnit,
+
+            long repeatDelay,
+            TimeUnit repeatUnit,
+
+            RepeatMode repeatMode,
+
+            TaskPriority priority,
+
+            String name,
+
+            Map<String, Object> metadata
+    ) {
+        this.sync =
+                sync;
+
+        this.delay =
+                Math.max(
+                        0L,
+                        delay
+                );
+
+        this.delayUnit =
+                delayUnit == null
+                        ? TimeUnit.MILLISECONDS
+                        : delayUnit;
+
+        this.repeatDelay =
+                Math.max(
+                        0L,
+                        repeatDelay
+                );
+
+        this.repeatUnit =
+                repeatUnit == null
+                        ? TimeUnit.MILLISECONDS
+                        : repeatUnit;
+
+        this.repeatMode =
+                repeatMode == null
+                        ? RepeatMode.FIXED_RATE
+                        : repeatMode;
+
+        this.priority =
+                priority == null
+                        ? TaskPriority.NORMAL
+                        : priority;
+
+        this.name =
+                name;
+
+        this.metadata =
+                metadata == null ||
+                        metadata.isEmpty()
+                        ? Map.of()
+                        : Collections.unmodifiableMap(
+                        new HashMap<>(
+                                metadata
+                        )
+                );
     }
 
     public boolean isSync() {
@@ -38,12 +99,20 @@ public final class TaskOptions {
         return delay;
     }
 
+    public TimeUnit getDelayUnit() {
+        return delayUnit;
+    }
+
     public long getRepeatDelay() {
         return repeatDelay;
     }
 
-    public TimeUnit getTimeUnit() {
-        return timeUnit;
+    public TimeUnit getRepeatUnit() {
+        return repeatUnit;
+    }
+
+    public RepeatMode getRepeatMode() {
+        return repeatMode;
     }
 
     public TaskPriority getPriority() {
@@ -58,105 +127,233 @@ public final class TaskOptions {
         return metadata;
     }
 
+    public boolean isRepeating() {
+        return repeatDelay > 0L;
+    }
+
+    public long getDelayNanos() {
+        return delayUnit.toNanos(
+                delay
+        );
+    }
+
+    public long getRepeatDelayNanos() {
+        return repeatUnit.toNanos(
+                repeatDelay
+        );
+    }
+
     /**
-     * Create a new Builder.
+     * Compatibility with the previous API.
      *
-     * @return Builder instance
+     * For new code prefer getDelayUnit()/getRepeatUnit().
      */
+    @Deprecated
+    public TimeUnit getTimeUnit() {
+        return delayUnit;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
 
-    /**
-     * Convenience: builder preconfigured for synchronous immediate execution.
-     *
-     * @return builder
-     */
     public static Builder syncBuilder() {
-        return new Builder().sync(true);
+        return new Builder()
+                .sync(true);
     }
 
-    /**
-     * Convenience: builder preconfigured for asynchronous immediate execution.
-     *
-     * @return builder
-     */
     public static Builder asyncBuilder() {
-        return new Builder().sync(false);
+        return new Builder()
+                .sync(false);
     }
 
-    /**
-     * Create a Builder initialized from an existing options instance (copy-on-write).
-     *
-     * @param copy source
-     * @return builder prefilled
-     */
-    public static Builder copyOf(TaskOptions copy) {
-        Builder b = new Builder();
-        if (copy == null) return b;
+    public static Builder copyOf(
+            TaskOptions copy
+    ) {
+        Builder builder =
+                new Builder();
 
-        return b.sync(copy.sync)
-            .delay(copy.delay, copy.timeUnit)
-            .repeatDelay(copy.repeatDelay, copy.timeUnit)
-            .timeUnit(copy.timeUnit)
-            .priority(copy.priority)
-            .name(copy.name)
-            .metadata(copy.metadata);
+        if (copy == null) {
+            return builder;
+        }
+
+        return builder
+                .sync(
+                        copy.sync
+                )
+                .delay(
+                        copy.delay,
+                        copy.delayUnit
+                )
+                .repeatDelay(
+                        copy.repeatDelay,
+                        copy.repeatUnit
+                )
+                .repeatMode(
+                        copy.repeatMode
+                )
+                .priority(
+                        copy.priority
+                )
+                .name(
+                        copy.name
+                )
+                .metadata(
+                        copy.metadata
+                );
     }
 
-    /**
-     * Builder for TaskOptions.
-     */
     public static final class Builder {
-        private boolean sync = false;
-        private long delay = 0L;
-        private long repeatDelay = 0L;
-        private TimeUnit timeUnit = TimeUnit.MILLISECONDS;
-        private TaskPriority priority = TaskPriority.NORMAL;
-        private String name = null;
-        private Map<String, Object> metadata = null;
+
+        private boolean sync;
+
+        private long delay;
+
+        private TimeUnit delayUnit =
+                TimeUnit.MILLISECONDS;
+
+        private long repeatDelay;
+
+        private TimeUnit repeatUnit =
+                TimeUnit.MILLISECONDS;
+
+        private RepeatMode repeatMode =
+                RepeatMode.FIXED_RATE;
+
+        private TaskPriority priority =
+                TaskPriority.NORMAL;
+
+        private String name;
+
+        private Map<String, Object> metadata;
 
         private Builder() {}
 
-        public Builder sync(boolean sync) {
-            this.sync = sync;
+        public Builder sync(
+                boolean sync
+        ) {
+            this.sync =
+                    sync;
+
             return this;
         }
 
-        public Builder delay(long delay, TimeUnit unit) {
-            this.delay = Math.max(0, delay);
-            this.timeUnit = unit == null ? TimeUnit.MILLISECONDS : unit;
+        public Builder delay(
+                long delay,
+                TimeUnit unit
+        ) {
+            this.delay =
+                    Math.max(
+                            0L,
+                            delay
+                    );
+
+            this.delayUnit =
+                    unit == null
+                            ? TimeUnit.MILLISECONDS
+                            : unit;
+
             return this;
         }
 
-        public Builder repeatDelay(long repeatDelay, TimeUnit unit) {
-            this.repeatDelay = Math.max(0, repeatDelay);
-            this.timeUnit = unit == null ? TimeUnit.MILLISECONDS : unit;
+        public Builder repeatDelay(
+                long repeatDelay,
+                TimeUnit unit
+        ) {
+            this.repeatDelay =
+                    Math.max(
+                            0L,
+                            repeatDelay
+                    );
+
+            this.repeatUnit =
+                    unit == null
+                            ? TimeUnit.MILLISECONDS
+                            : unit;
+
             return this;
         }
 
-        public Builder timeUnit(TimeUnit unit) {
-            this.timeUnit = unit == null ? TimeUnit.MILLISECONDS : unit;
+        public Builder repeatMode(
+                RepeatMode repeatMode
+        ) {
+            this.repeatMode =
+                    repeatMode == null
+                            ? RepeatMode.FIXED_RATE
+                            : repeatMode;
+
             return this;
         }
 
-        public Builder priority(TaskPriority priority) {
-            this.priority = priority == null ? TaskPriority.NORMAL : priority;
+        /**
+         * Compatibility helper.
+         *
+         * Sets BOTH units.
+         */
+        public Builder timeUnit(
+                TimeUnit unit
+        ) {
+            TimeUnit resolved =
+                    unit == null
+                            ? TimeUnit.MILLISECONDS
+                            : unit;
+
+            this.delayUnit =
+                    resolved;
+
+            this.repeatUnit =
+                    resolved;
+
             return this;
         }
 
-        public Builder name(String name) {
-            this.name = name;
+        public Builder priority(
+                TaskPriority priority
+        ) {
+            this.priority =
+                    priority == null
+                            ? TaskPriority.NORMAL
+                            : priority;
+
             return this;
         }
 
-        public Builder metadata(Map<String, Object> metadata) {
-            this.metadata = metadata;
+        public Builder name(
+                String name
+        ) {
+            this.name =
+                    name;
+
+            return this;
+        }
+
+        public Builder metadata(
+                Map<String, Object> metadata
+        ) {
+            this.metadata =
+                    metadata;
+
             return this;
         }
 
         public TaskOptions build() {
-            return new TaskOptions(sync, delay, repeatDelay, timeUnit == null ? TimeUnit.MILLISECONDS : timeUnit, priority == null ? TaskPriority.NORMAL : priority, name, metadata);
+            return new TaskOptions(
+                    sync,
+
+                    delay,
+                    delayUnit,
+
+                    repeatDelay,
+                    repeatUnit,
+
+                    repeatMode,
+
+                    priority,
+
+                    name,
+
+                    metadata
+            );
         }
     }
 }
