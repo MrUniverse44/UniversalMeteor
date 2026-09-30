@@ -6,12 +6,16 @@ import me.blueslime.meteor.platforms.api.entity.Sender;
 import me.blueslime.meteor.platforms.api.logger.IPlatformLogger;
 import me.blueslime.meteor.platforms.api.utils.CommandUtils;
 import me.blueslime.meteor.platforms.paper.sender.PaperSender;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class PaperCommandExecute extends org.bukkit.command.Command {
     private final Command rootCommand;
@@ -135,4 +139,238 @@ public class PaperCommandExecute extends org.bukkit.command.Command {
         }
         return parsed.toArray();
     }
+
+    @Override
+    public @NotNull List<String> tabComplete(
+            @NotNull CommandSender bukkitSender,
+            @NotNull String alias,
+            String[] args
+    ) {
+        Sender sender =
+                PaperSender.build(
+                        bukkitSender
+                );
+
+        try {
+            return findSuggestions(
+                    sender,
+                    rootCommand,
+                    args
+            );
+
+        } catch (
+                RuntimeException exception
+        ) {
+            return List.of();
+        }
+    }
+
+    private List<String> findSuggestions(
+            Sender sender,
+            Command root,
+            String[] args
+    ) {
+        if (args == null) {
+            args =
+                    new String[0];
+        }
+
+        Subcommand current =
+                root;
+
+        List<Subcommand> children =
+                root.getSubcommands();
+
+        int consumed =
+                0;
+
+        /*
+         * The final token is the one currently being completed.
+         *
+         * Therefore only consume COMPLETE previous tokens as
+         * subcommands.
+         */
+        int completedArguments =
+                Math.max(
+                        0,
+                        args.length - 1
+                );
+
+        while (
+                consumed < completedArguments &&
+                        !children.isEmpty()
+        ) {
+            String token =
+                    args[consumed];
+
+            Subcommand match =
+                    null;
+
+            for (Subcommand child : children) {
+                if (
+                        child
+                                .getId()
+                                .equalsIgnoreCase(
+                                        token
+                                )
+                ) {
+                    match =
+                            child;
+
+                    break;
+                }
+            }
+
+            if (match == null) {
+                break;
+            }
+
+            current =
+                    match;
+
+            children =
+                    match.getSubcommands();
+
+            consumed++;
+        }
+
+        String remaining =
+                args.length == 0
+                        ? ""
+                        : args[args.length - 1];
+
+        List<String> suggestions =
+                new ArrayList<>();
+
+        /*
+         * If we haven't started entering the command's arguments yet,
+         * children are possible candidates too.
+         */
+        int argumentIndex =
+                Math.max(
+                        0,
+                        args.length - 1 - consumed
+                );
+
+        if (argumentIndex == 0) {
+            for (Subcommand child : children) {
+                suggestions.add(
+                        child.getId()
+                );
+            }
+        }
+
+        List<Argument<?>> definitions =
+                current.getArguments();
+
+        if (argumentIndex < definitions.size()) {
+            Argument<?> argument =
+                    definitions.get(
+                            argumentIndex
+                    );
+
+            suggestions.addAll(
+                    suggestionsFor(
+                            sender,
+                            argument
+                    )
+            );
+        }
+
+        String lower =
+                remaining.toLowerCase(
+                        java.util.Locale.ROOT
+                );
+
+        return suggestions
+                .stream()
+                .filter(Objects::nonNull)
+                .filter(value ->
+                        value
+                                .toLowerCase(
+                                        java.util.Locale.ROOT
+                                )
+                                .startsWith(
+                                        lower
+                                )
+                )
+                .distinct()
+                .sorted(
+                        String.CASE_INSENSITIVE_ORDER
+                )
+                .toList();
+    }
+
+    private List<String> suggestionsFor(
+            Sender sender,
+            Argument<?> argument
+    ) {
+        if (argument.isSuggestionKeyPresent()) {
+            me.blueslime.meteor.platforms.api.commands.SuggestionProvider provider =
+                    registry.getSuggestion(
+                            argument.getSuggestionKey()
+                    );
+
+            if (provider != null) {
+                List<String> values =
+                        provider.getSuggestions(
+                                sender
+                        );
+
+                return values == null
+                        ? List.of()
+                        : values;
+            }
+        }
+
+        if (argument.isSuggestionListPresent()) {
+            return List.copyOf(
+                    argument.getSuggestions()
+            );
+        }
+
+        Class<?> type =
+                argument.getType();
+
+        if (
+                type == Player.class ||
+                        type == OfflinePlayer.class ||
+                        type == Sender.class
+        ) {
+            return Bukkit
+                    .getOnlinePlayers()
+                    .stream()
+                    .map(Player::getName)
+                    .toList();
+        }
+
+        if (type == Boolean.class || type == boolean.class) {
+            return List.of(
+                    "true",
+                    "false"
+            );
+        }
+
+        if (type.isEnum()) {
+            Object[] constants =
+                    type.getEnumConstants();
+
+            if (constants == null) {
+                return List.of();
+            }
+
+            return Arrays
+                    .stream(
+                            constants
+                    )
+                    .map(value ->
+                            ((Enum<?>) value).name()
+                    )
+                    .toList();
+        }
+
+        return List.of();
+    }
+
+
 }

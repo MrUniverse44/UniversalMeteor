@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+@Deprecated
 public class OfflinePlayerArgumentType implements ArgumentType<OfflinePlayer> {
     private static final Collection<String> EXAMPLES = List.of("Steve", "Alex");
 
@@ -33,7 +34,7 @@ public class OfflinePlayerArgumentType implements ArgumentType<OfflinePlayer> {
         return context.getArgument(name, OfflinePlayer.class);
     }
 
-    @SuppressWarnings({"ConstantValue", "deprecation"})
+    @SuppressWarnings({"ConstantValue"})
     @Override
     public OfflinePlayer parse(StringReader reader) throws CommandSyntaxException {
         String name = reader.readUnquotedString();
@@ -58,7 +59,7 @@ public class OfflinePlayerArgumentType implements ArgumentType<OfflinePlayer> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof PlayerArgumentType;
+        return o instanceof OfflinePlayerArgumentType;
     }
 
     @Override

@@ -5,8 +5,6 @@ import me.blueslime.meteor.platforms.api.commands.*;
 import me.blueslime.meteor.platforms.api.commands.provider.PlatformCommandProvider;
 import me.blueslime.meteor.platforms.api.entity.Sender;
 import me.blueslime.meteor.platforms.spiper.brigadier.BrigadierInjector;
-import me.blueslime.meteor.platforms.spiper.brigadier.PlayerArgumentType;
-import me.blueslime.meteor.platforms.spiper.brigadier.SenderArgumentType;
 import me.blueslime.meteor.platforms.spiper.brigadier.SpigotSender;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -18,7 +16,7 @@ import java.lang.reflect.Field;
 
 public class SpigotPlatformCommandProvider implements PlatformCommandProvider {
 
-    private BrigadierInjector brigadierInjector;
+    private final BrigadierInjector brigadierInjector;
     private final JavaPlugin plugin;
     private CommandMap commandMap;
 
@@ -26,18 +24,10 @@ public class SpigotPlatformCommandProvider implements PlatformCommandProvider {
         this.plugin = plugin;
         setupCommandMap();
 
-        if (isBrigadierSupported()) {
-            this.brigadierInjector = new BrigadierInjector();
-        }
-    }
-
-    private boolean isBrigadierSupported() {
-        try {
-            Class.forName("com.mojang.brigadier.CommandDispatcher");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+        this.brigadierInjector =
+                new BrigadierInjector(
+                        plugin
+                );
     }
 
     private void setupCommandMap() {
@@ -56,8 +46,15 @@ public class SpigotPlatformCommandProvider implements PlatformCommandProvider {
 
         commandMap.register(plugin.getName().toLowerCase(), wrapper);
 
-        if (brigadierInjector != null) {
-            brigadierInjector.register(command, registry, wrapper);
+        if (
+            brigadierInjector != null &&
+            brigadierInjector.isSupported()
+        ) {
+            brigadierInjector.register(
+                    command,
+                    registry,
+                    wrapper
+            );
         }
     }
 
@@ -131,30 +128,110 @@ public class SpigotPlatformCommandProvider implements PlatformCommandProvider {
         platformCommands.registerType(Long.class, longs);
         platformCommands.registerType(long.class, longs);
 
-        platformCommands.registerType(Player.class, new ArgumentTypeHandler<>() {
-            @Override
-            public Player parse(String input) { return Bukkit.getPlayerExact(input); }
-            @Override
-            public Object getBrigadierType() { return PlayerArgumentType.playerArg(); }
-        });
+        platformCommands.registerType(
+                Sender.class,
+                new ArgumentTypeHandler<>() {
 
-        platformCommands.registerType(Sender.class, new ArgumentTypeHandler<>() {
-            @Override
-            public Sender parse(String input) {
-                Player player = Bukkit.getPlayerExact(input);
-                if (player == null) return null;
-                return SpigotSender.build(player);
-            }
-            @Override
-            public Object getBrigadierType() { return SenderArgumentType.senderArg(); }
-        });
+                    @Override
+                    public Sender parse(
+                            String input
+                    ) {
+                        Player player =
+                                Bukkit.getPlayerExact(
+                                        input
+                                );
 
-        platformCommands.registerType(OfflinePlayer.class, new ArgumentTypeHandler<>() {
-            @SuppressWarnings("deprecation")
-            @Override
-            public OfflinePlayer parse(String input) { return Bukkit.getOfflinePlayer(input); }
-            @Override
-            public Object getBrigadierType() { return PlayerArgumentType.playerArg(); }
-        });
+                        if (player == null) {
+                            throw new IllegalArgumentException(
+                                    "Player '" + input + "' is not online."
+                            );
+                        }
+
+                        return SpigotSender.build(
+                            player
+                        );
+                    }
+
+                    @Override
+                    public Object getBrigadierType() {
+                        /*
+                         * Commodore/client sees a normal vanilla word.
+                         *
+                         * Meteor performs the actual conversion to Sender.
+                         */
+                        return StringArgumentType.word();
+                    }
+                }
+        );
+
+        platformCommands.registerType(
+                Player.class,
+                new ArgumentTypeHandler<>() {
+
+                    @Override
+                    public Player parse(
+                            String input
+                    ) {
+                        Player player =
+                                Bukkit.getPlayerExact(
+                                        input
+                                );
+
+                        if (player == null) {
+                            throw new IllegalArgumentException(
+                                    "Player '"
+                                            + input
+                                            + "' is not online."
+                            );
+                        }
+
+                        return player;
+                    }
+
+                    @Override
+                    public Object getBrigadierType() {
+                        return StringArgumentType.word();
+                    }
+                }
+        );
+
+        platformCommands.registerType(
+                OfflinePlayer.class,
+                new ArgumentTypeHandler<>() {
+
+                    @Override
+                    @SuppressWarnings("deprecation")
+                    public OfflinePlayer parse(
+                            String input
+                    ) {
+                        OfflinePlayer player =
+                                Bukkit.getOfflinePlayer(
+                                        input
+                                );
+
+                        /*
+                         * Bukkit#getOfflinePlayer(String) doesn't really
+                         * mean "this player has played before".
+                         */
+                        if (
+                                !player.hasPlayedBefore() &&
+                                        !player.isOnline()
+                        ) {
+                            throw new IllegalArgumentException(
+                                    "Player '"
+                                            + input
+                                            + "' has never joined the server."
+                            );
+                        }
+
+                        return player;
+                    }
+
+                    @Override
+                    public Object getBrigadierType() {
+                        return StringArgumentType.word();
+                    }
+                }
+        );
     }
 }

@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+@Deprecated
 public class SenderArgumentType implements ArgumentType<Sender> {
     private static final Collection<String> EXAMPLES = List.of("Steve", "Alex");
 
@@ -58,7 +59,7 @@ public class SenderArgumentType implements ArgumentType<Sender> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof PlayerArgumentType;
+        return o instanceof SenderArgumentType;
     }
 
     @Override

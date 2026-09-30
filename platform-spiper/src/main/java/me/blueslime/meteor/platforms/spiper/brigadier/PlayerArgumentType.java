@@ -15,6 +15,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+@Deprecated
 public class PlayerArgumentType implements ArgumentType<Player> {
     private static final Collection<String> EXAMPLES = List.of("Steve", "Alex");
 
