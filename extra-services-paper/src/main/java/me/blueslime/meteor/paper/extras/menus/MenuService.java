@@ -1704,38 +1704,39 @@ public final class MenuService
         if (
                 settings.closeOnShutdown()
         ) {
-            runtime
-                    .mainThread()
-                    .waitFor(() -> {
-                        for (
-                                MenuSession session :
-                                List.copyOf(
-                                        sessions.values()
-                                )
-                        ) {
-                            session.invalidate();
-
-                            animations.cancelGroup(
-                                    session.sessionId()
-                            );
-
-                            Player player =
-                                    Bukkit.getPlayer(
-                                            session.playerId()
-                                    );
-
-                            if (
-                                    player != null &&
-                                            player
-                                                    .getOpenInventory()
-                                                    .getTopInventory()
-                                                    .getHolder()
-                                                    == session
+            if (runtime.mainThread().isRunning()) {
+                runtime.mainThread()
+                        .waitFor(() -> {
+                            for (
+                                    MenuSession session :
+                                    List.copyOf(
+                                            sessions.values()
+                                    )
                             ) {
-                                player.closeInventory();
+                                session.invalidate();
+
+                                animations.cancelGroup(
+                                        session.sessionId()
+                                );
+
+                                Player player =
+                                        Bukkit.getPlayer(
+                                                session.playerId()
+                                        );
+
+                                if (
+                                        player != null &&
+                                                player
+                                                        .getOpenInventory()
+                                                        .getTopInventory()
+                                                        .getHolder()
+                                                        == session
+                                ) {
+                                    player.closeInventory();
+                                }
                             }
-                        }
-                    });
+                        });
+            }
         }
 
         sessions.clear();
