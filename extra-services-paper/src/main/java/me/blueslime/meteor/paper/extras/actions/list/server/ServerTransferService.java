@@ -6,6 +6,8 @@ import me.blueslime.meteor.paper.extras.actions.dispatch.ActionExecutionResult;
 import me.blueslime.meteor.paper.extras.actions.runtime.ActionPlan;
 import me.blueslime.meteor.paper.extras.runtime.MainThreadBridge;
 
+import me.blueslime.meteor.platforms.api.Project;
+import me.blueslime.meteor.platforms.api.service.PlatformService;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -22,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 
-public final class ServerTransferService {
+public final class ServerTransferService implements PlatformService {
 
     public static final String CHANNEL =
             "BungeeCord";
@@ -115,10 +117,13 @@ public final class ServerTransferService {
                         )
         );
 
+
+        String name = fetch(Project.class).name();
+
         processor =
                 Thread.ofVirtual()
                         .name(
-                                "meteor-server-transfer"
+                            name +"-server-transfer"
                         )
                         .start(
                                 this::processLoop

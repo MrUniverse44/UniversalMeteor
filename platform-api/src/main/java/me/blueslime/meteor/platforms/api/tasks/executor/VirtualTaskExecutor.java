@@ -1,5 +1,8 @@
 package me.blueslime.meteor.platforms.api.tasks.executor;
 
+import me.blueslime.meteor.implementation.Implementer;
+import me.blueslime.meteor.platforms.api.Project;
+
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -12,7 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class VirtualTaskExecutor
-        implements AutoCloseable {
+        implements AutoCloseable, Implementer {
 
     private final ExecutorService executor;
 
@@ -50,10 +53,12 @@ public final class VirtualTaskExecutor
                         maxConcurrent
                 );
 
+        String name = fetch(Project.class).name();
+
         ThreadFactory factory =
                 Thread.ofVirtual()
                         .name(
-                                "Meteor-Async-",
+                                name + "-Async-",
                                 0
                         )
                         .factory();

@@ -36,6 +36,7 @@ import me.blueslime.meteor.paper.extras.runtime.ExecutionRuntimeService;
 import me.blueslime.meteor.paper.extras.runtime.context.ExecutionContext;
 import me.blueslime.meteor.paper.extras.runtime.context.ExecutionContextSnapshot;
 
+import me.blueslime.meteor.platforms.api.Project;
 import me.blueslime.meteor.platforms.api.configuration.PlatformConfigurations;
 import me.blueslime.meteor.platforms.api.configuration.handle.ConfigurationHandle;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
@@ -117,10 +118,12 @@ public final class MenuService
                         settings
                 ).validate();
 
+        String name = fetch(Project.class).name();
+
         ThreadFactory factory =
                 Thread.ofVirtual()
                         .name(
-                                "meteor-menu-",
+                                name + "-menu-",
                                 0
                         )
                         .factory();

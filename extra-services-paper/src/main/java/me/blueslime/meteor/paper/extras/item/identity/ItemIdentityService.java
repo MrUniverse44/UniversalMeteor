@@ -1,5 +1,7 @@
 package me.blueslime.meteor.paper.extras.item.identity;
 
+import me.blueslime.meteor.platforms.api.Project;
+import me.blueslime.meteor.platforms.api.service.PlatformService;
 import org.bukkit.NamespacedKey;
 
 import org.bukkit.inventory.ItemStack;
@@ -14,7 +16,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
-public final class ItemIdentityService {
+public final class ItemIdentityService implements PlatformService {
 
     private final NamespacedKey typeKey;
     private final NamespacedKey ownerKey;
@@ -25,34 +27,37 @@ public final class ItemIdentityService {
     public ItemIdentityService(
             JavaPlugin plugin
     ) {
+
+        String name = fetch(Project.class).name();
+
         this.typeKey =
                 new NamespacedKey(
                         plugin,
-                        "meteor_item_type"
+                        name + "_item_type"
                 );
 
         this.ownerKey =
                 new NamespacedKey(
                         plugin,
-                        "meteor_item_owner"
+                        name + "_item_owner"
                 );
 
         this.sessionKey =
                 new NamespacedKey(
                         plugin,
-                        "meteor_item_session"
+                        name + "_item_session"
                 );
 
         this.containerKey =
                 new NamespacedKey(
                         plugin,
-                        "meteor_item_container"
+                        name + "_item_container"
                 );
 
         this.itemKey =
                 new NamespacedKey(
                         plugin,
-                        "meteor_item_id"
+                        name + "_item_id"
                 );
     }
 

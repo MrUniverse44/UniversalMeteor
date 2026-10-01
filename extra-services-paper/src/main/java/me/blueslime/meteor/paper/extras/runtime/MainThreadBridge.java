@@ -385,9 +385,7 @@ public final class MainThreadBridge {
                     System.nanoTime()
                             - started;
 
-            if (
-                    elapsed >=
-                            slowOperationNanos
+            if (elapsed >= slowOperationNanos
             ) {
                 plugin
                         .getLogger()

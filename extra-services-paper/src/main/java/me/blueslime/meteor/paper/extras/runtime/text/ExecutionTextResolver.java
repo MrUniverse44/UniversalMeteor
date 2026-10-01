@@ -27,7 +27,7 @@ public final class ExecutionTextResolver {
 
     /**
      * Thread-safe Meteor-owned replacements.
-     *
+     * <br>
      * This method intentionally does NOT execute
      * PlaceholderAPI.
      */

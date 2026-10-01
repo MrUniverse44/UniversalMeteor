@@ -20,6 +20,7 @@ import me.blueslime.meteor.paper.extras.runtime.ExecutionRuntimeService;
 import me.blueslime.meteor.paper.extras.runtime.context.ExecutionContext;
 import me.blueslime.meteor.paper.extras.runtime.text.ExecutionTextResolver;
 
+import me.blueslime.meteor.platforms.api.Project;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
 
 import java.util.Collection;
@@ -101,10 +102,13 @@ public final class ConditionService
                         parser
                 );
 
+
+        String name = fetch(Project.class).name();
+
         ThreadFactory factory =
                 Thread.ofVirtual()
                         .name(
-                                "meteor-condition-",
+                                name + "-condition-",
                                 0
                         )
                         .factory();

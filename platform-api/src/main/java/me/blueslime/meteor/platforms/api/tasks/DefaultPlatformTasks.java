@@ -1,5 +1,7 @@
 package me.blueslime.meteor.platforms.api.tasks;
 
+import me.blueslime.meteor.implementation.Implementer;
+import me.blueslime.meteor.platforms.api.Project;
 import me.blueslime.meteor.platforms.api.tasks.executor.VirtualTaskExecutor;
 import me.blueslime.meteor.platforms.api.tasks.handle.DefaultTaskHandle;
 import me.blueslime.meteor.platforms.api.tasks.handle.TaskHandle;
@@ -8,6 +10,7 @@ import me.blueslime.meteor.platforms.api.tasks.options.DefaultTaskSettings;
 import me.blueslime.meteor.platforms.api.tasks.options.RepeatMode;
 import me.blueslime.meteor.platforms.api.tasks.options.TaskOptions;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -18,8 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class DefaultPlatformTasks
-        implements PlatformTasks, AutoCloseable {
+public class DefaultPlatformTasks implements PlatformTasks, AutoCloseable, Implementer {
 
     /**
      * Active logical tasks.
@@ -87,6 +89,8 @@ public class DefaultPlatformTasks
                 "settings"
         );
 
+        String name = fetch(Project.class).name();
+
         this.asyncRuntime =
                 new VirtualTaskExecutor(
                         settings.maxConcurrentAsync(),
@@ -97,7 +101,7 @@ public class DefaultPlatformTasks
                 Thread.ofPlatform()
                         .daemon(true)
                         .name(
-                                "Meteor-Task-Timer-",
+                                name + "-Task-Timer-",
                                 0
                         )
                         .factory();
@@ -126,7 +130,7 @@ public class DefaultPlatformTasks
                             Thread.ofPlatform()
                                     .daemon(true)
                                     .name(
-                                            "Meteor-Task-Main"
+                                            name + "-Task-Main"
                                     )
                                     .unstarted(
                                             runnable

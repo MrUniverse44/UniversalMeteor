@@ -509,14 +509,6 @@ public final class AnimationService
         );
 
         if (!running.get()) {
-            getLogger().warn(
-                    "[Animation] Ignoring animation command because "
-                            + "AnimationService is not running. instance="
-                            + Integer.toHexString(
-                            System.identityHashCode(this)
-                    )
-            );
-
             return;
         }
 

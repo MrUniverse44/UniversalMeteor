@@ -3,6 +3,7 @@ package me.blueslime.meteor.platforms.api.plugin;
 import me.blueslime.meteor.implementation.Implementer;
 import me.blueslime.meteor.implementation.service.Service;
 import me.blueslime.meteor.platforms.api.Platforms;
+import me.blueslime.meteor.platforms.api.Project;
 import me.blueslime.meteor.platforms.api.commands.PlatformCommands;
 import me.blueslime.meteor.platforms.api.configuration.PlatformConfigurations;
 import me.blueslime.meteor.platforms.api.data.PluginData;
@@ -44,8 +45,9 @@ public abstract class PlatformPlugin implements Implementer {
     protected PlatformCommands commands;
     protected final Object adapter;
     protected final File directory;
+    protected final Project project;
 
-    public PlatformPlugin(PluginInfo info) {
+    public PlatformPlugin(PluginInfo info, Project project) {
         this.platform = info.getPlatform() == null ? Platforms.UNIVERSAL : info.getPlatform();
         this.pluginData = info.getPluginData();
         this.directory = info.getDirectory();
@@ -54,6 +56,8 @@ public abstract class PlatformPlugin implements Implementer {
         this.logger = info.getLogger();
         this.adapter = info.getAdapter();
         this.tasks = info.getTasks();
+        this.project = project;
+        registerImpl(Project.class, project, true);
     }
 
     /**
@@ -266,6 +270,10 @@ public abstract class PlatformPlugin implements Implementer {
 
         Class<?> check = type.isPrimitive() ? primitiveToWrapper(type) : type;
         return check.isInstance(handle);
+    }
+
+    public Project getProject() {
+        return project;
     }
 
     /**

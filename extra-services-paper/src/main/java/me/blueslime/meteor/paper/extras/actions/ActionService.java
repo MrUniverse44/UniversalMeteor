@@ -30,6 +30,7 @@ import me.blueslime.meteor.paper.extras.runtime.text.ExecutionTextResolver;
 
 import me.blueslime.meteor.paper.extras.runtime.value.RuntimeValueCompiler;
 
+import me.blueslime.meteor.platforms.api.Project;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
 
 import org.bukkit.entity.Player;
@@ -130,10 +131,12 @@ public class ActionService
                         runtimeValues
                 );
 
+        String name = fetch(Project.class).name();
+
         ThreadFactory threadFactory =
                 Thread.ofVirtual()
                         .name(
-                                "meteor-action-",
+                                name + "-action-",
                                 0
                         )
                         .factory();

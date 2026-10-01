@@ -46,6 +46,7 @@ import me.blueslime.meteor.paper.extras.runtime.compiler.CompilationReporter;
 import me.blueslime.meteor.paper.extras.runtime.context.ExecutionContext;
 import me.blueslime.meteor.paper.extras.runtime.context.ExecutionContextSnapshot;
 
+import me.blueslime.meteor.platforms.api.Project;
 import me.blueslime.meteor.platforms.api.configuration.handle.ConfigurationHandle;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
 
@@ -130,10 +131,12 @@ public final class InventoryService implements PlatformService {
                         "settings"
                 ).validate();
 
+        String name = fetch(Project.class).name();
+
         ThreadFactory factory =
                 Thread.ofVirtual()
                         .name(
-                                "meteor-inventory-",
+                                name + "-inventory-",
                                 0
                         )
                         .factory();
