@@ -364,14 +364,38 @@ public final class ItemRenderer
             return;
         }
 
-        /*
-         * ItemSkinService receives ONLY the final
-         * runtime value.
-         */
+        if (
+                hasUnresolvedRuntimeValue(
+                        resolvedSkin
+                )
+        ) {
+            getLogger().warn(
+                    "Unable to render player head skin because "
+                            + "the runtime value could not be resolved: '"
+                            + resolvedSkin
+                            + "'"
+            );
+
+            return;
+        }
+
         skinService.applyTexture(
                 item,
                 resolvedSkin
         );
+    }
+
+    private boolean hasUnresolvedRuntimeValue(
+            String value
+    ) {
+        return value.indexOf('%') >= 0
+                ||
+                value.contains("${")
+                ||
+                (
+                        value.indexOf('<') >= 0 &&
+                                value.indexOf('>') >= 0
+                );
     }
 
 

@@ -2,7 +2,6 @@ package me.blueslime.meteor.paper.extras.item;
 
 import me.blueslime.meteor.color.renders.ComponentRenderer;
 import me.blueslime.meteor.paper.extras.item.armor.ItemArmorSlot;
-import me.blueslime.meteor.paper.extras.item.skin.ItemSkinService;
 import me.blueslime.meteor.platforms.api.configuration.handle.ConfigurationHandle;
 import me.blueslime.meteor.platforms.api.service.PlatformService;
 import me.blueslime.meteor.utilities.colors.JavaColorUtils;

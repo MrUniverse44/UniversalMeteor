@@ -102,30 +102,36 @@ public final class ItemSkinService
         item.editMeta(
                 SkullMeta.class,
                 meta -> {
-                    /*
-                     * Prefer the live player's already-complete
-                     * profile when available.
-                     *
-                     * This avoids unnecessary Mojang requests
-                     * for online players.
-                     */
                     Player online =
                             Bukkit.getPlayerExact(
                                     username
                             );
 
                     if (online != null) {
-                        meta.setPlayerProfile(
-                                online.getPlayerProfile()
+                        PlayerProfile profile =
+                                online.getPlayerProfile();
+
+                        if (profile.hasTextures()) {
+                            meta.setPlayerProfile(
+                                    profile
+                            );
+
+                            return;
+                        }
+
+                        getLogger().warn(
+                                "Unable to apply player head skin for '"
+                                        + username
+                                        + "': online profile contains no textures."
                         );
 
                         return;
                     }
 
                     /*
-                     * For an offline/not-currently-online username,
-                     * Paper may need to resolve profile properties
-                     * from Mojang.
+                     * Offline usernames may require an external
+                     * Mojang lookup. This path should therefore
+                     * not normally be used for %player_name%.
                      */
                     PlayerProfile profile =
                             Bukkit.createProfile(
@@ -146,10 +152,6 @@ public final class ItemSkinService
         item.editMeta(
                 SkullMeta.class,
                 meta -> {
-                    /*
-                     * Deterministic UUID is perfectly fine here,
-                     * now that we KNOW this is an actual texture.
-                     */
                     UUID profileId =
                             UUID.nameUUIDFromBytes(
                                     (
@@ -160,9 +162,36 @@ public final class ItemSkinService
                                     )
                             );
 
+                    /*
+                     * Paper considers a profile complete when
+                     * UUID + name + textures are available.
+                     *
+                     * Give custom texture profiles a deterministic
+                     * synthetic name so Paper has no reason to
+                     * complete the profile through Mojang.
+                     *
+                     * Minecraft usernames have a maximum length
+                     * of 16 characters:
+                     *
+                     * meteor_ + 8 chars = 15
+                     */
+                    String profileName =
+                            "meteor_"
+                                    + profileId
+                                    .toString()
+                                    .replace(
+                                            "-",
+                                            ""
+                                    )
+                                    .substring(
+                                            0,
+                                            8
+                                    );
+
                     PlayerProfile profile =
-                            Bukkit.createProfile(
-                                    profileId
+                            Bukkit.createProfileExact(
+                                    profileId,
+                                    profileName
                             );
 
                     profile.setProperty(
