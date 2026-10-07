@@ -70,7 +70,7 @@
         
         <!-- Platform versions -->
         <paper.version>1.21.11-R0.1-SNAPSHOT</paper.version>
-        <velocity.version>3.3.0-SNAPSHOT</velocity.version>
+        <velocity.version>4.2.0</velocity.version>
         <authlib.version>3.11.50</authlib.version>
     </properties>
 
