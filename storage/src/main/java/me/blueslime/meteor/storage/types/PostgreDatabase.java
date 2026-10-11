@@ -1,5 +1,6 @@
 package me.blueslime.meteor.storage.types;
 
+import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -7,107 +8,310 @@ import org.jetbrains.annotations.Nullable;
 import java.sql.Connection;
 import java.sql.SQLException;
 
+@SuppressWarnings("unused")
 public class PostgreDatabase extends SQLDatabase {
 
-    private HikariDataSource dataSource;
+    private volatile HikariDataSource dataSource;
 
-    /**
-     * Creates a new SQL Database.
-     *
-     * @param host         The host of the MySQL server.
-     * @param databaseName The name of the MySQL database.
-     * @param user         The username for the MySQL database.
-     * @param password     The password for the MySQL database.
-     * @param port         The port of the MySQL server.
-     */
-    public PostgreDatabase(@NotNull String host, @NotNull String databaseName, @NotNull String user, @Nullable String password, int port) {
-        super(host, databaseName, user, password, port);
+    public PostgreDatabase(
+            @NotNull String host,
+            @NotNull String databaseName,
+            @NotNull String user,
+            @Nullable String password,
+            int port
+    ) {
+        super(
+                host,
+                databaseName,
+                user,
+                password,
+                port
+        );
     }
 
     @Override
-    public void connect() {
-        dataSource = new HikariDataSource();
-        dataSource.setDriverClassName("org.postgresql.Driver");
+    public synchronized void connect() {
+        HikariDataSource current =
+                dataSource;
 
-        String jdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", host, port, databaseName);
-        dataSource.setJdbcUrl(jdbcUrl);
-
-        dataSource.setUsername(user);
-        dataSource.setPassword(password);
-
-        
-        dataSource.addDataSourceProperty("cachePrepStmts", "true");
-        dataSource.addDataSourceProperty("prepStmtCacheSize", "250");
-        dataSource.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
-        dataSource.addDataSourceProperty("useServerPrepStmts", "true");
-        dataSource.addDataSourceProperty("reWriteBatchedInserts", "true");
-
-        
-        dataSource.setMaximumPoolSize(10);
-        dataSource.setMinimumIdle(2);
-        dataSource.setConnectionTimeout(30000);
-        dataSource.setIdleTimeout(600000);
-        dataSource.setMaxLifetime(1800000);
-    }
-
-    @Override
-    public void close() {
-        if (dataSource != null) {
-            dataSource.close();
+        if (
+                current != null
+                        && !current.isClosed()
+        ) {
+            return;
         }
+
+        initializeAsyncExecutor();
+
+        HikariConfig config =
+                new HikariConfig();
+
+        config.setPoolName(
+                "Meteor-PostgreSQL"
+        );
+
+        config.setDriverClassName(
+                "org.postgresql.Driver"
+        );
+
+        config.setJdbcUrl(
+                "jdbc:postgresql://"
+                        + host
+                        + ":"
+                        + port
+                        + "/"
+                        + databaseName
+        );
+
+        config.setUsername(
+                user
+        );
+
+        if (
+                password != null
+        ) {
+            config.setPassword(
+                    password
+            );
+        }
+
+        config.addDataSourceProperty(
+                "reWriteBatchedInserts",
+                "true"
+        );
+
+        config.setMaximumPoolSize(
+                10
+        );
+
+        config.setMinimumIdle(
+                2
+        );
+
+        config.setConnectionTimeout(
+                30_000L
+        );
+
+        config.setIdleTimeout(
+                600_000L
+        );
+
+        config.setMaxLifetime(
+                1_800_000L
+        );
+
+        this.dataSource =
+                new HikariDataSource(
+                        config
+                );
     }
 
-
-    /**
-     * Checks whether the underlying handle is an instance of the given type.
-     *
-     * @param type The class to check compatibility with.
-     * @return true if the handle is non-null and can be cast to {@code type}, false otherwise.
-     */
     @Override
-    public boolean is(Class<?> type) {
-        Object handle = dataSource;
-        if (handle == null || type == null) return false;
-        if (type == Object.class) return true;
+    protected synchronized void close() {
+        HikariDataSource current =
+                dataSource;
 
-        Class<?> check = type.isPrimitive() ? primitiveToWrapper(type) : type;
-        return check.isInstance(handle);
-    }
+        dataSource =
+                null;
 
-    /**
-     * Casts the underlying handle to a specific class type if compatible.
-     * <p>
-     * If the handle is not compatible with {@code type} this method returns {@code null}
-     * (no ClassCastException will be thrown).
-     *
-     * @param type The class to cast the handle to.
-     * @param <T>  The type of the class.
-     * @return The cast handle, or {@code null} if not compatible.
-     */
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> T to(Class<T> type) {
-        return is(type) ? (T) dataSource : null;
-    }
-
-    @Override
-    protected String buildJsonCondition(String key) {
-        return "CAST(`json_data` AS json)->>'" + key + "'";
+        if (
+                current != null
+        ) {
+            current.close();
+        }
     }
 
     @Override
     protected void ensureConnected() {
-        try {
-            if (dataSource == null || dataSource.getConnection() == null || dataSource.getConnection().isClosed() || !dataSource.getConnection().isValid(2)) {
-                throw new IllegalStateException("MariaDB connection is not valid; call connect() first.");
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException("Error checking DB connection", e);
+        HikariDataSource current =
+                dataSource;
+
+        if (
+                current == null
+                        || current.isClosed()
+        ) {
+            throw new IllegalStateException(
+                    "PostgreSQL database is not connected; call connect() first."
+            );
         }
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
+    public Connection getConnection()
+            throws SQLException {
+        ensureConnected();
+
         return dataSource.getConnection();
+    }
+
+    @Override
+    public boolean is(
+            Class<?> type
+    ) {
+        HikariDataSource handle =
+                dataSource;
+
+        if (
+                handle == null
+                        || type == null
+        ) {
+            return false;
+        }
+
+        if (
+                type == Object.class
+        ) {
+            return true;
+        }
+
+        Class<?> check =
+                type.isPrimitive()
+                        ? primitiveToWrapper(
+                                type
+                        )
+                        : type;
+
+        return check.isInstance(
+                handle
+        );
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T to(
+            Class<T> type
+    ) {
+        return is(type)
+                ? (T) dataSource
+                : null;
+    }
+
+    @Override
+    protected String quoteIdentifier(
+            String identifier
+    ) {
+        return "\""
+                + sanitizeIdentifier(
+                        identifier
+                )
+                + "\"";
+    }
+
+    @Override
+    protected String buildCreateMainTableStatement(
+            String quotedTable
+    ) {
+        return "CREATE TABLE IF NOT EXISTS "
+                + quotedTable
+                + " ("
+                + quoteIdentifier("_id")
+                + " VARCHAR(255) PRIMARY KEY, "
+                + quoteIdentifier("json_data")
+                + " TEXT NOT NULL"
+                + ")";
+    }
+
+    @Override
+    protected String buildUpsertStatement(
+            String quotedTable
+    ) {
+        return "INSERT INTO "
+                + quotedTable
+                + " ("
+                + quoteIdentifier("_id")
+                + ", "
+                + quoteIdentifier("json_data")
+                + ") VALUES (?, ?) "
+                + "ON CONFLICT ("
+                + quoteIdentifier("_id")
+                + ") DO UPDATE SET "
+                + quoteIdentifier("json_data")
+                + " = EXCLUDED."
+                + quoteIdentifier("json_data");
+    }
+
+    @Override
+    protected String buildCreateLegacyIndexTableStatement(
+            String quotedTable
+    ) {
+        return "CREATE TABLE IF NOT EXISTS "
+                + quotedTable
+                + " ("
+                + quoteIdentifier("_id")
+                + " VARCHAR(255) PRIMARY KEY, "
+                + quoteIdentifier("referenced")
+                + " VARCHAR(255) NOT NULL"
+                + ")";
+    }
+
+    @Override
+    protected String buildLegacyIndexUpsertStatement(
+            String quotedTable
+    ) {
+        return "INSERT INTO "
+                + quotedTable
+                + " ("
+                + quoteIdentifier("_id")
+                + ", "
+                + quoteIdentifier("referenced")
+                + ") VALUES (?, ?) "
+                + "ON CONFLICT ("
+                + quoteIdentifier("_id")
+                + ") DO UPDATE SET "
+                + quoteIdentifier("referenced")
+                + " = EXCLUDED."
+                + quoteIdentifier("referenced");
+    }
+
+    @Override
+    protected String buildJsonCondition(
+            String key
+    ) {
+        String safeKey =
+                sanitizeJsonKey(
+                        key
+                );
+
+        return "(CAST("
+                + quoteIdentifier("json_data")
+                + " AS jsonb) ->> '"
+                + safeKey
+                + "')";
+    }
+
+    @Override
+    protected String buildNumericJsonCondition(
+            String key
+    ) {
+        return "CAST("
+                + buildJsonCondition(
+                        key
+                )
+                + " AS NUMERIC)";
+    }
+
+    @Override
+    protected String buildJsonExistsCondition(
+            String key
+    ) {
+        String safeKey =
+                sanitizeJsonKey(
+                        key
+                );
+
+        return "(CAST("
+                + quoteIdentifier("json_data")
+                + " AS jsonb) ? '"
+                + safeKey
+                + "')";
+    }
+
+    @Override
+    protected boolean isMissingTable(
+            SQLException exception
+    ) {
+        return "42P01".equals(
+                exception.getSQLState()
+        );
     }
 }

@@ -1,93 +1,315 @@
 package me.blueslime.meteor.storage.types;
 
+import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.SQLException;
 
 @SuppressWarnings("unused")
 public class MariaDatabase extends SQLDatabase {
 
-    private HikariDataSource dataSource = null;
+    private volatile HikariDataSource dataSource;
 
-    /**
-     * Creates a new SQL Database.
-     *
-     * @param host         The host of the MySQL server.
-     * @param databaseName The name of the MySQL database.
-     * @param user         The username for the MySQL database.
-     * @param password     The password for the MySQL database.
-     * @param port         The port of the MySQL server.
-     */
-    public MariaDatabase(@NotNull String host, @NotNull String databaseName, @NotNull String user, @Nullable String password, int port) {
-        super(host, databaseName, user, password, port);
+    public MariaDatabase(
+            @NotNull String host,
+            @NotNull String databaseName,
+            @NotNull String user,
+            @Nullable String password,
+            int port
+    ) {
+        super(
+                host,
+                databaseName,
+                user,
+                password,
+                port
+        );
     }
 
     @Override
-    public void connect() {
-        dataSource = new HikariDataSource();
-        dataSource.setDataSourceClassName("com.mysql.jdbc.jdbc2.optional.MysqlDataSource");
-        dataSource.addDataSourceProperty("serverName", host);
-        dataSource.addDataSourceProperty("port", port);
-        dataSource.addDataSourceProperty("databaseName", databaseName);
-        dataSource.addDataSourceProperty("user", user);
-        dataSource.addDataSourceProperty("password", password);
+    public synchronized void connect() {
+        HikariDataSource current =
+                dataSource;
+
+        if (
+                current != null
+                        && !current.isClosed()
+        ) {
+            return;
+        }
+
+        initializeAsyncExecutor();
+
+        HikariConfig config =
+                new HikariConfig();
+
+        config.setPoolName(
+                "Meteor-MariaDB"
+        );
+
+        config.setDriverClassName(
+                "org.mariadb.jdbc.Driver"
+        );
+
+        config.setJdbcUrl(
+                "jdbc:mariadb://"
+                        + host
+                        + ":"
+                        + port
+                        + "/"
+                        + databaseName
+        );
+
+        config.setUsername(
+                user
+        );
+
+        if (
+                password != null
+        ) {
+            config.setPassword(
+                    password
+            );
+        }
+
+        /*
+         * Virtual threads make waiting cheap, but the database still has a
+         * finite amount of useful parallelism. Keep a bounded JDBC pool.
+         */
+        config.setMaximumPoolSize(
+                10
+        );
+
+        config.setMinimumIdle(
+                2
+        );
+
+        config.setConnectionTimeout(
+                30_000L
+        );
+
+        config.setIdleTimeout(
+                600_000L
+        );
+
+        config.setMaxLifetime(
+                1_800_000L
+        );
+
+        this.dataSource =
+                new HikariDataSource(
+                        config
+                );
     }
 
     @Override
-    public void close() {
-        if (dataSource != null) {
-            dataSource.close();
+    protected synchronized void close() {
+        HikariDataSource current =
+                dataSource;
+
+        dataSource =
+                null;
+
+        if (
+                current != null
+        ) {
+            current.close();
         }
     }
 
     @Override
     protected void ensureConnected() {
-        try {
-            if (dataSource == null || dataSource.getConnection() == null || dataSource.getConnection().isClosed() || !dataSource.getConnection().isValid(2)) {
-                throw new IllegalStateException("MariaDB connection is not valid; call connect() first.");
-            }
-        } catch (SQLException e) {
-            throw new IllegalStateException("Error checking DB connection", e);
+        HikariDataSource current =
+                dataSource;
+
+        if (
+                current == null
+                        || current.isClosed()
+        ) {
+            throw new IllegalStateException(
+                    "MariaDB database is not connected; call connect() first."
+            );
         }
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
+    public Connection getConnection()
+            throws SQLException {
+        ensureConnected();
+
         return dataSource.getConnection();
     }
 
-
-    /**
-     * Checks whether the underlying handle is an instance of the given type.
-     *
-     * @param type The class to check compatibility with.
-     * @return true if the handle is non-null and can be cast to {@code type}, false otherwise.
-     */
     @Override
-    public boolean is(Class<?> type) {
-        Object handle = dataSource;
-        if (handle == null || type == null) return false;
-        if (type == Object.class) return true;
+    public boolean is(
+            Class<?> type
+    ) {
+        HikariDataSource handle =
+                dataSource;
 
-        Class<?> check = type.isPrimitive() ? primitiveToWrapper(type) : type;
-        return check.isInstance(handle);
+        if (
+                handle == null
+                        || type == null
+        ) {
+            return false;
+        }
+
+        if (
+                type == Object.class
+        ) {
+            return true;
+        }
+
+        Class<?> check =
+                type.isPrimitive()
+                        ? primitiveToWrapper(
+                                type
+                        )
+                        : type;
+
+        return check.isInstance(
+                handle
+        );
     }
 
-    /**
-     * Casts the underlying handle to a specific class type if compatible.
-     * <p>
-     * If the handle is not compatible with {@code type} this method returns {@code null}
-     * (no ClassCastException will be thrown).
-     *
-     * @param type The class to cast the handle to.
-     * @param <T>  The type of the class.
-     * @return The cast handle, or {@code null} if not compatible.
-     */
     @Override
     @SuppressWarnings("unchecked")
-    public <T> T to(Class<T> type) {
-        return is(type) ? (T) dataSource : null;
+    public <T> T to(
+            Class<T> type
+    ) {
+        return is(type)
+                ? (T) dataSource
+                : null;
+    }
+
+    @Override
+    protected String quoteIdentifier(
+            String identifier
+    ) {
+        return "`"
+                + sanitizeIdentifier(
+                        identifier
+                )
+                + "`";
+    }
+
+    @Override
+    protected String buildCreateMainTableStatement(
+            String quotedTable
+    ) {
+        return "CREATE TABLE IF NOT EXISTS "
+                + quotedTable
+                + " ("
+                + quoteIdentifier("_id")
+                + " VARCHAR(255) NOT NULL PRIMARY KEY, "
+                + quoteIdentifier("json_data")
+                + " LONGTEXT NOT NULL"
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    }
+
+    @Override
+    protected String buildUpsertStatement(
+            String quotedTable
+    ) {
+        return "INSERT INTO "
+                + quotedTable
+                + " ("
+                + quoteIdentifier("_id")
+                + ", "
+                + quoteIdentifier("json_data")
+                + ") VALUES (?, ?) "
+                + "ON DUPLICATE KEY UPDATE "
+                + quoteIdentifier("json_data")
+                + " = VALUES("
+                + quoteIdentifier("json_data")
+                + ")";
+    }
+
+    @Override
+    protected String buildCreateLegacyIndexTableStatement(
+            String quotedTable
+    ) {
+        return "CREATE TABLE IF NOT EXISTS "
+                + quotedTable
+                + " ("
+                + quoteIdentifier("_id")
+                + " VARCHAR(255) NOT NULL PRIMARY KEY, "
+                + quoteIdentifier("referenced")
+                + " VARCHAR(255) NOT NULL"
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    }
+
+    @Override
+    protected String buildLegacyIndexUpsertStatement(
+            String quotedTable
+    ) {
+        return "INSERT INTO "
+                + quotedTable
+                + " ("
+                + quoteIdentifier("_id")
+                + ", "
+                + quoteIdentifier("referenced")
+                + ") VALUES (?, ?) "
+                + "ON DUPLICATE KEY UPDATE "
+                + quoteIdentifier("referenced")
+                + " = VALUES("
+                + quoteIdentifier("referenced")
+                + ")";
+    }
+
+    @Override
+    protected String buildJsonCondition(
+            String key
+    ) {
+        String safeKey =
+                sanitizeJsonKey(
+                        key
+                );
+
+        return "JSON_UNQUOTE(JSON_EXTRACT("
+                + quoteIdentifier("json_data")
+                + ", '$.\""
+                + safeKey
+                + "\"'))";
+    }
+
+    @Override
+    protected String buildNumericJsonCondition(
+            String key
+    ) {
+        return "CAST("
+                + buildJsonCondition(
+                        key
+                )
+                + " AS DECIMAL(65, 10))";
+    }
+
+    @Override
+    protected String buildJsonExistsCondition(
+            String key
+    ) {
+        String safeKey =
+                sanitizeJsonKey(
+                        key
+                );
+
+        return "JSON_CONTAINS_PATH("
+                + quoteIdentifier("json_data")
+                + ", 'one', '$.\""
+                + safeKey
+                + "\"')";
+    }
+
+    @Override
+    protected boolean isMissingTable(
+            SQLException exception
+    ) {
+        return exception.getErrorCode() == 1146
+                || "42S02".equals(
+                        exception.getSQLState()
+                );
     }
 }

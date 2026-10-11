@@ -132,7 +132,6 @@ public final class ModuleIsolatedClassLoader extends URLClassLoader {
                 }
             }
 
-            // 5) try to find class in this classloader (module jar)
             try {
                 Class<?> found = findClass(name);
                 if (resolve) resolveClass(found);

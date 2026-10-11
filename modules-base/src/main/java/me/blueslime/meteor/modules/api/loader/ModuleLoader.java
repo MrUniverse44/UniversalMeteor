@@ -125,7 +125,6 @@ public class ModuleLoader implements PlatformService {
     private ModuleLoaderContainer createClassLoaderAndFindClasses(File file) throws IOException {
         if (!file.exists()) return new ModuleLoaderContainer(List.of(), null);
 
-        // --- KEY CHANGE: Use PlatformHandle for dependencies ---
         URL[] urls = handle.getPossibleDependencies(file);
         ClassLoader parent = handle.getParentPluginClassLoader();
         List<ClassLoader> fallbacks = handle.getFallbacks();

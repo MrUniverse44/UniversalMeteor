@@ -1,451 +1,1538 @@
 package me.blueslime.meteor.storage.types;
 
 import me.blueslime.meteor.storage.database.StorageDatabase;
-import me.blueslime.meteor.storage.interfaces.*;
+import me.blueslime.meteor.storage.interfaces.StorageExtraIdentifier;
+import me.blueslime.meteor.storage.interfaces.StorageIdentifier;
+import me.blueslime.meteor.storage.interfaces.StorageObject;
 import me.blueslime.meteor.storage.query.StorageQuery;
 import me.blueslime.meteor.storage.references.ReferencedObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.sql.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressWarnings("unused")
 public abstract class SQLDatabase extends StorageDatabase {
 
     protected final Set<String> createdTables = ConcurrentHashMap.newKeySet();
 
-    protected final ExecutorService dbExecutor;
-    protected final String host, databaseName, user, password;
+    protected final String host;
+    protected final String databaseName;
+    protected final String user;
+    protected final String password;
     protected final int port;
 
-    public SQLDatabase(@NotNull String host, @NotNull String databaseName, @NotNull String user, @Nullable String password, int port) {
+    protected SQLDatabase(
+        @NotNull String host,
+        @NotNull String databaseName,
+        @NotNull String user,
+        @Nullable String password,
+        int port
+    ) {
         this.host = host;
         this.databaseName = databaseName;
         this.user = user;
         this.password = password;
         this.port = port;
-        this.dbExecutor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     }
 
     @Override
     public abstract void connect();
 
-    public abstract void close();
+    /**
+     * Closes the JDBC backend itself.
+     * <br>
+     * The public lifecycle entry point is {@link #closeConnection()}.
+     */
+    protected abstract void close();
 
     @Override
-    public void closeConnection() {
-        close();
-        dbExecutor.shutdown();
+    public final void closeConnection() {
+        shutdownAsyncExecutor();
+
         try {
-            if (!dbExecutor.awaitTermination(2, TimeUnit.SECONDS))
-                dbExecutor.shutdownNow();
-        } catch (InterruptedException ignored) {
-            dbExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
+            close();
+        } finally {
+            createdTables.clear();
         }
     }
 
     protected abstract void ensureConnected();
 
-    @Override
-    public CompletableFuture<Void> saveOrUpdateAsync(StorageObject obj) {
-        return CompletableFuture.runAsync(() -> saveOrUpdateSync(obj), dbExecutor);
-    }
+    public abstract Connection getConnection() throws SQLException;
+
+    protected abstract String quoteIdentifier(String identifier);
+
+    protected abstract String buildCreateMainTableStatement(String quotedTable);
+
+    protected abstract String buildUpsertStatement(String quotedTable);
+
+    protected abstract String buildCreateLegacyIndexTableStatement(String quotedTable);
+
+    protected abstract String buildLegacyIndexUpsertStatement(String quotedTable);
+
+    protected abstract String buildJsonCondition(String key);
+
+    protected abstract String buildNumericJsonCondition(String key);
+
+    protected abstract String buildJsonExistsCondition(String key);
+
+    protected abstract boolean isMissingTable(SQLException exception);
 
     @Override
-    public void saveOrUpdateSync(StorageObject obj) {
+    public void saveOrUpdateSync(StorageObject object) {
+        if (object == null) {
+            return;
+        }
+
         ensureConnected();
 
-        String table = obj.getClass().getSimpleName();
-        String safeTable = sanitizeIdentifier(table);
-        String id = extractIdentifier(obj);
-        if (id == null) id = obj.getClass().getSimpleName(); // Fallback ID
+        String rawTable =
+                sanitizeIdentifier(
+                        object
+                                .getClass()
+                                .getSimpleName()
+                );
 
-        String jsonData = mapper().toJson(obj);
+        String table =
+                quoteIdentifier(
+                        rawTable
+                );
 
-        String sql = "INSERT INTO " + safeTable + " (`_id`, `json_data`) VALUES (?, ?) " +
-                     "ON DUPLICATE KEY UPDATE `json_data` = VALUES(`json_data`)";
+        ensureMainTable(
+                rawTable,
+                table
+        );
 
-        try (PreparedStatement stmt = getConnection().prepareStatement(sql)) {
-            stmt.setString(1, id);
-            stmt.setString(2, jsonData);
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            if (e.getErrorCode() == 1146 || "42S02".equals(e.getSQLState())) {
-                createMainTable(safeTable);
-                saveOrUpdateSync(obj);
+        String identifier =
+                extractIdentifier(
+                        object
+                );
+
+        if (identifier == null) {
+            identifier =
+                    object
+                            .getClass()
+                            .getSimpleName();
+        }
+
+        String jsonData =
+                mapper().toJson(
+                        object
+                );
+
+        String sql =
+                buildUpsertStatement(
+                        table
+                );
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    )
+        ) {
+            statement.setString(
+                    1,
+                    identifier
+            );
+
+            statement.setString(
+                    2,
+                    jsonData
+            );
+
+            statement.executeUpdate();
+
+        } catch (SQLException exception) {
+            /*
+             * The table cache can become stale if an administrator drops a
+             * table while the process is alive. Retry once after recreation.
+             */
+            if (isMissingTable(exception)) {
+                createdTables.remove(rawTable);
+
+                ensureMainTable(
+                        rawTable,
+                        table
+                );
+
+                retrySave(
+                        table,
+                        identifier,
+                        jsonData
+                );
+
                 return;
             }
-            logError("Error saving object to SQL Database in table " + safeTable, e);
+
+            logError(
+                    "Error saving object to SQL database table "
+                            + rawTable,
+                    exception
+            );
+
+            return;
         }
 
-        Set<String> extraIds = extractExtraIdentifier(obj);
-        if (!extraIds.isEmpty()) {
-            saveExtraIdentifiers(table, id, extraIds);
+        Set<String> extraIdentifiers =
+                extractExtraIdentifier(
+                        object
+                );
+
+        if (!extraIdentifiers.isEmpty()) {
+            saveExtraIdentifiers(
+                    rawTable,
+                    identifier,
+                    extraIdentifiers
+            );
         }
     }
 
-    private void createMainTable(String tableName) {
-        String sql = "CREATE TABLE IF NOT EXISTS " + tableName + " (" +
-                     "`_id` VARCHAR(255) NOT NULL PRIMARY KEY, " +
-                     "`json_data` LONGTEXT" +
-                     ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
-        try (Statement stmt = getConnection().createStatement()) {
-            stmt.execute(sql);
-            createdTables.add(tableName);
-        } catch (SQLException e) {
-            logError("Failed to create main table " + tableName, e);
+    private void retrySave(String table, String identifier, String jsonData) {
+        String sql =
+                buildUpsertStatement(
+                        table
+                );
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    )
+        ) {
+            statement.setString(
+                    1,
+                    identifier
+            );
+
+            statement.setString(
+                    2,
+                    jsonData
+            );
+
+            statement.executeUpdate();
+
+        } catch (SQLException exception) {
+            logError(
+                    "Failed to retry SQL save for identifier "
+                            + identifier,
+                    exception
+            );
         }
     }
 
-    private void saveExtraIdentifiers(String rawTableName, String realId, Set<String> extraIds) {
-        String namingTable = sanitizeIdentifier(rawTableName + "_StringNaming");
+    private void ensureMainTable(String rawTable, String quotedTable) {
+        if (
+                createdTables.contains(
+                        rawTable
+                )
+        ) {
+            return;
+        }
 
-        if (!createdTables.contains(namingTable)) {
-            String createSql = "CREATE TABLE IF NOT EXISTS " + namingTable +
-                               "(`_id` VARCHAR(255) NOT NULL PRIMARY KEY," +
-                               " `referenced` VARCHAR(255) NOT NULL" +
-                               ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
-            try (Statement stmt = getConnection().createStatement()) {
-                stmt.execute(createSql);
-                createdTables.add(namingTable);
-            } catch (SQLException e) {
-                logError("Error creating naming table " + namingTable, e);
-                return;
+        String sql =
+                buildCreateMainTableStatement(
+                        quotedTable
+                );
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            Statement statement =
+                    connection.createStatement()
+        ) {
+            statement.execute(
+                    sql
+            );
+
+            createdTables.add(
+                    rawTable
+            );
+
+        } catch (SQLException exception) {
+            throw new IllegalStateException(
+                    "Failed to create SQL table "
+                            + rawTable,
+                    exception
+            );
+        }
+    }
+
+    private void saveExtraIdentifiers(String rawMainTable, String realIdentifier, Set<String> extraIdentifiers) {
+        String rawNamingTable =
+                sanitizeIdentifier(
+                        rawMainTable
+                                + "_StringNaming"
+                );
+
+        String namingTable =
+                quoteIdentifier(
+                        rawNamingTable
+                );
+
+        ensureLegacyIndexTable(
+                rawNamingTable,
+                namingTable
+        );
+
+        String sql =
+                buildLegacyIndexUpsertStatement(
+                        namingTable
+                );
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    )
+        ) {
+            for (
+                String extraIdentifier :
+                extraIdentifiers
+            ) {
+                statement.setString(
+                        1,
+                        extraIdentifier.toLowerCase(
+                                Locale.ENGLISH
+                        )
+                );
+
+                statement.setString(
+                        2,
+                        realIdentifier
+                );
+
+                statement.addBatch();
             }
-        }
 
-        String insertSql = "INSERT INTO " + namingTable +
-                           " (`_id`, `referenced`) VALUES (?, ?) " +
-                           "ON DUPLICATE KEY UPDATE `referenced` = ?";
+            statement.executeBatch();
 
-        try (PreparedStatement stmt = getConnection().prepareStatement(insertSql)) {
-            for (String extra : extraIds) {
-                String keyLower = extra.toLowerCase(Locale.ENGLISH);
-                stmt.setString(1, keyLower);
-                stmt.setString(2, realId);
-                stmt.setString(3, realId);
-                stmt.addBatch();
-            }
-            stmt.executeBatch();
-        } catch (SQLException e) {
-            logError("Error saving extra identifiers for " + rawTableName, e);
+        } catch (SQLException exception) {
+            logError(
+                    "Error saving legacy extra identifiers for "
+                            + rawMainTable,
+                    exception
+            );
         }
     }
 
-    protected String buildJsonCondition(String key) {
-        return "JSON_UNQUOTE(JSON_EXTRACT(`json_data`, '$." + key + "'))";
-    }
+    private void ensureLegacyIndexTable(String rawTable, String quotedTable) {
+        if (
+                createdTables.contains(
+                        rawTable
+                )
+        ) {
+            return;
+        }
 
-    private void appendQueryFilters(StringBuilder sql, List<Object> params, StorageQuery query) {
-        if (query != null && query.getFilters() != null && !query.getFilters().isEmpty()) {
-            sql.append(" WHERE ");
-            boolean first = true;
-            for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
-                if (!first) sql.append(" AND ");
-                first = false;
+        String sql =
+                buildCreateLegacyIndexTableStatement(
+                        quotedTable
+                );
 
-                String key = entry.getKey();
-                Object val = entry.getValue();
+        try (
+            Connection connection =
+                    getConnection();
 
-                if (val == null) {
-                    sql.append(buildJsonCondition(key)).append(" IS NULL");
-                } else {
-                    sql.append(buildJsonCondition(key)).append(" = ?");
-                    params.add(val.toString());
-                }
-            }
+            Statement statement =
+                    connection.createStatement()
+        ) {
+            //noinspection SqlSourceToSinkFlow
+            statement.execute(
+                    sql
+            );
+
+            createdTables.add(
+                    rawTable
+            );
+
+        } catch (SQLException exception) {
+            throw new IllegalStateException(
+                    "Failed to create SQL legacy index table "
+                            + rawTable,
+                    exception
+            );
         }
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Set<T>> matchAsync(Class<T> clazz, StorageQuery query) {
-        return CompletableFuture.supplyAsync(() -> matchSync(clazz, query), dbExecutor);
+    public <T extends StorageObject> Optional<ReferencedObject> loadByExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
+        ensureConnected();
+
+        String rawTable =
+                sanitizeIdentifier(
+                        clazz.getSimpleName()
+                                + "_StringNaming"
+                );
+
+        String table =
+                quoteIdentifier(
+                        rawTable
+                );
+
+        String sql =
+                "SELECT "
+                        + quoteIdentifier("referenced")
+                        + " FROM "
+                        + table
+                        + " WHERE "
+                        + quoteIdentifier("_id")
+                        + " = ?";
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    )
+        ) {
+            statement.setString(
+                    1,
+                    extraIdentifier.toLowerCase(
+                            Locale.ENGLISH
+                    )
+            );
+
+            try (
+                ResultSet resultSet =
+                        statement.executeQuery()
+            ) {
+                if (
+                        resultSet.next()
+                ) {
+                    return Optional.of(
+                            new ReferencedObject(
+                                    extraIdentifier,
+                                    resultSet.getString(
+                                            "referenced"
+                                    )
+                            )
+                    );
+                }
+            }
+
+        } catch (SQLException exception) {
+            if (
+                    !isMissingTable(
+                            exception
+                    )
+            ) {
+                logError(
+                        "Error loading legacy extra identifier "
+                                + extraIdentifier,
+                        exception
+                );
+            }
+        }
+
+        return Optional.empty();
     }
 
     @Override
     public <T extends StorageObject> boolean deleteExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
-        return false;
-    }
+        ensureConnected();
 
-    @Override
-    public <T extends StorageObject> CompletableFuture<Boolean> deleteExtraIdentifierAsync(Class<T> clazz, String extraIdentifier) {
-        return null;
+        String table =
+                quoteIdentifier(
+                        sanitizeIdentifier(
+                                clazz.getSimpleName()
+                                        + "_StringNaming"
+                        )
+                );
+
+        String sql =
+                "DELETE FROM "
+                        + table
+                        + " WHERE "
+                        + quoteIdentifier("_id")
+                        + " = ?";
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    )
+        ) {
+            statement.setString(
+                    1,
+                    extraIdentifier.toLowerCase(
+                            Locale.ENGLISH
+                    )
+            );
+
+            return statement.executeUpdate()
+                    > 0;
+
+        } catch (SQLException exception) {
+            if (
+                    !isMissingTable(
+                            exception
+                    )
+            ) {
+                logError(
+                        "Error deleting legacy extra identifier "
+                                + extraIdentifier,
+                        exception
+                );
+            }
+
+            return false;
+        }
     }
 
     @Override
     public <T extends StorageObject> Set<T> matchSync(Class<T> clazz, StorageQuery query) {
         ensureConnected();
-        Set<T> results = new LinkedHashSet<>();
-        String table = sanitizeIdentifier(clazz.getSimpleName());
 
-        StringBuilder sql = new StringBuilder("SELECT `json_data` FROM ").append(table);
-        List<Object> parameters = new ArrayList<>();
+        Set<T> results =
+                new LinkedHashSet<>();
 
-        appendQueryFilters(sql, parameters, query);
+        String table =
+                quoteIdentifier(
+                        sanitizeIdentifier(
+                                clazz.getSimpleName()
+                        )
+                );
 
-        if (query != null && query.getSortBy() != null) {
-            sql.append(" ORDER BY ").append(buildJsonCondition(query.getSortBy()));
-            sql.append(query.isSortDescending() ? " DESC" : " ASC");
+        StringBuilder sql =
+                new StringBuilder(
+                        "SELECT "
+                                + quoteIdentifier("json_data")
+                                + " FROM "
+                                + table
+                );
+
+        List<Object> parameters =
+                new ArrayList<>();
+
+        appendQueryFilters(
+                sql,
+                parameters,
+                query
+        );
+
+        if (
+                query != null
+                        && query.getSortBy() != null
+        ) {
+            sql.append(
+                    " ORDER BY "
+            );
+
+            sql.append(
+                    buildJsonCondition(
+                            sanitizeJsonKey(
+                                    query.getSortBy()
+                            )
+                    )
+            );
+
+            sql.append(
+                    query.isSortDescending()
+                            ? " DESC"
+                            : " ASC"
+            );
         }
 
-        if (query != null && query.getLimit() != null) {
-            sql.append(" LIMIT ").append(query.getLimit());
+        if (
+                query != null
+                        && query.getLimit() != null
+        ) {
+            sql.append(
+                    " LIMIT "
+            );
+
+            sql.append(
+                    query.getLimit()
+            );
         }
 
-        try (PreparedStatement stmt = getConnection().prepareStatement(sql.toString())) {
-            for (int i = 0; i < parameters.size(); i++) {
-                stmt.setObject(i + 1, parameters.get(i));
-            }
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    String json = rs.getString("json_data");
-                    T obj = mapper().fromJson(json, clazz);
-                    if (obj != null) results.add(obj);
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql.toString()
+                    )
+        ) {
+            bindParameters(
+                    statement,
+                    parameters
+            );
+
+            try (
+                ResultSet resultSet =
+                        statement.executeQuery()
+            ) {
+                while (
+                        resultSet.next()
+                ) {
+                    String json =
+                            resultSet.getString(
+                                    "json_data"
+                            );
+
+                    T object =
+                            mapper().fromJson(
+                                    json,
+                                    clazz
+                            );
+
+                    if (
+                            object != null
+                    ) {
+                        results.add(
+                                object
+                        );
+                    }
                 }
             }
-        } catch (SQLException e) {
-            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
-                logError("Error in matchSync for table " + table, e);
+
+        } catch (SQLException exception) {
+            if (
+                    !isMissingTable(
+                            exception
+                    )
+            ) {
+                logError(
+                        "Error in matchSync for table "
+                                + clazz.getSimpleName(),
+                        exception
+                );
             }
         }
-        return results;
-    }
 
-    @Override
-    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz, StorageQuery query) {
-        return CompletableFuture.supplyAsync(() -> countSync(clazz, query), dbExecutor);
+        return results;
     }
 
     @Override
     public <T extends StorageObject> long countSync(Class<T> clazz, StorageQuery query) {
         ensureConnected();
-        String table = sanitizeIdentifier(clazz.getSimpleName());
 
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM ").append(table);
-        List<Object> parameters = new ArrayList<>();
+        String table =
+                quoteIdentifier(
+                        sanitizeIdentifier(
+                                clazz.getSimpleName()
+                        )
+                );
 
-        appendQueryFilters(sql, parameters, query);
+        StringBuilder sql =
+                new StringBuilder(
+                        "SELECT COUNT(*) FROM "
+                                + table
+                );
 
-        try (PreparedStatement stmt = getConnection().prepareStatement(sql.toString())) {
-            for (int i = 0; i < parameters.size(); i++) {
-                stmt.setObject(i + 1, parameters.get(i));
+        List<Object> parameters =
+                new ArrayList<>();
+
+        appendQueryFilters(
+                sql,
+                parameters,
+                query
+        );
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql.toString()
+                    )
+        ) {
+            bindParameters(
+                    statement,
+                    parameters
+            );
+
+            try (
+                ResultSet resultSet =
+                        statement.executeQuery()
+            ) {
+                if (
+                        resultSet.next()
+                ) {
+                    return resultSet.getLong(
+                            1
+                    );
+                }
             }
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) return rs.getLong(1);
-            }
-        } catch (SQLException e) {
-            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
-                logError("Error in countSync for table " + table, e);
+
+        } catch (SQLException exception) {
+            if (
+                    !isMissingTable(
+                            exception
+                    )
+            ) {
+                logError(
+                        "Error in countSync for table "
+                                + clazz.getSimpleName(),
+                        exception
+                );
             }
         }
+
         return 0L;
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz) {
-        return CompletableFuture.runAsync(() -> deleteAllSync(clazz), dbExecutor);
-    }
-
-    @Override
-    public <T extends StorageObject> void deleteAllSync(Class<T> clazz) {
-        ensureConnected();
-        String table = sanitizeIdentifier(clazz.getSimpleName());
-        String sql = "DELETE FROM " + table;
-        try (Statement stmt = getConnection().createStatement()) {
-            stmt.executeUpdate(sql);
-        } catch (SQLException e) {
-            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
-                logError("Error in deleteAllSync (all) for table " + table, e);
-            }
-        }
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz, StorageQuery query) {
-        return CompletableFuture.runAsync(() -> deleteAllSync(clazz, query), dbExecutor);
-    }
-
-    @Override
-    public <T extends StorageObject> void deleteAllSync(Class<T> clazz, StorageQuery query) {
-        ensureConnected();
-        String table = sanitizeIdentifier(clazz.getSimpleName());
-
-        StringBuilder sql = new StringBuilder("DELETE FROM ").append(table);
-        List<Object> parameters = new ArrayList<>();
-
-        appendQueryFilters(sql, parameters, query);
-
-        try (PreparedStatement stmt = getConnection().prepareStatement(sql.toString())) {
-            for (int i = 0; i < parameters.size(); i++) {
-                stmt.setObject(i + 1, parameters.get(i));
-            }
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
-                logError("Error in deleteAllSync (filtered) for table " + table, e);
-            }
-        }
-    }
-
-    @Override
     public <T extends StorageObject> long countSync(Class<T> clazz) {
-        return countSync(clazz, null);
+        return countSync(
+                clazz,
+                null
+        );
     }
 
-    @Override
-    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz) {
-        return countAsync(clazz, null);
+    private void appendQueryFilters(
+            StringBuilder sql,
+            List<Object> parameters,
+            StorageQuery query
+    ) {
+        if (
+                query == null
+                        || query
+                                .getConditions()
+                                .isEmpty()
+        ) {
+            return;
+        }
+
+        sql.append(
+                " WHERE "
+        );
+
+        boolean first =
+                true;
+
+        for (
+            StorageQuery.Condition condition :
+            query.getConditions()
+        ) {
+            if (!first) {
+                sql.append(
+                        " AND "
+                );
+            }
+
+            first = false;
+
+            appendCondition(
+                    sql,
+                    parameters,
+                    condition
+            );
+        }
     }
 
-    @Override
-    public <T extends StorageObject> CompletableFuture<Optional<T>> loadByIdAsync(Class<T> clazz, String id) {
-        return CompletableFuture.supplyAsync(() -> loadByIdSync(clazz, id), dbExecutor);
-    }
+    private void appendCondition(StringBuilder sql, List<Object> parameters, StorageQuery.Condition condition) {
+        String key =
+                sanitizeJsonKey(
+                        condition.key()
+                );
 
-    @Override
-    public <T extends StorageObject> Optional<T> loadByIdSync(Class<T> clazz, String id) {
-        ensureConnected();
-        String table = sanitizeIdentifier(clazz.getSimpleName());
-        String sql = "SELECT `json_data` FROM " + table + " WHERE `_id` = ?";
+        Object value =
+                condition.value();
 
-        try (PreparedStatement stmt = getConnection().prepareStatement(sql)) {
-            stmt.setString(1, id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    String json = rs.getString("json_data");
-                    return Optional.ofNullable(mapper().fromJson(json, clazz));
+        String textExpression =
+                buildJsonCondition(
+                        key
+                );
+
+        switch (
+                condition.operator()
+        ) {
+            case EQUALS -> {
+                if (
+                        value == null
+                ) {
+                    sql.append(
+                            textExpression
+                    );
+
+                    sql.append(
+                            " IS NULL"
+                    );
+
+                    return;
+                }
+
+                if (
+                        value instanceof Number
+                ) {
+                    sql.append(
+                            buildNumericJsonCondition(
+                                    key
+                            )
+                    );
+
+                    sql.append(
+                            " = ?"
+                    );
+
+                    parameters.add(
+                            value
+                    );
+
+                    return;
+                }
+
+                sql.append(
+                        textExpression
+                );
+
+                sql.append(
+                        " = ?"
+                );
+
+                parameters.add(
+                        normalizeScalarParameter(
+                                value
+                        )
+                );
+            }
+
+            case GREATER_THAN -> {
+                sql.append(
+                        value instanceof Number
+                                ? buildNumericJsonCondition(
+                                        key
+                                )
+                                : textExpression
+                );
+
+                sql.append(
+                        " > ?"
+                );
+
+                parameters.add(
+                        value instanceof Number
+                                ? value
+                                : normalizeScalarParameter(
+                                        value
+                                )
+                );
+            }
+
+            case LESS_THAN -> {
+                sql.append(
+                        value instanceof Number
+                                ? buildNumericJsonCondition(
+                                        key
+                                )
+                                : textExpression
+                );
+
+                sql.append(
+                        " < ?"
+                );
+
+                parameters.add(
+                        value instanceof Number
+                                ? value
+                                : normalizeScalarParameter(
+                                        value
+                                )
+                );
+            }
+
+            case CONTAINS -> {
+                sql.append(
+                        "LOWER(COALESCE("
+                );
+
+                sql.append(
+                        textExpression
+                );
+
+                sql.append(
+                        ", '')) LIKE ? ESCAPE '!'"
+                );
+
+                parameters.add(
+                        "%"
+                                + escapeLike(
+                                    String.valueOf(
+                                            value
+                                    ).toLowerCase(
+                                            Locale.ROOT
+                                    )
+                                )
+                                + "%"
+                );
+            }
+
+            case STARTS_WITH -> {
+                sql.append(
+                        "LOWER(COALESCE("
+                );
+
+                sql.append(
+                        textExpression
+                );
+
+                sql.append(
+                        ", '')) LIKE ? ESCAPE '!'"
+                );
+
+                parameters.add(
+                        escapeLike(
+                                String.valueOf(
+                                        value
+                                ).toLowerCase(
+                                        Locale.ROOT
+                                )
+                        ) + "%"
+                );
+            }
+
+            case ENDS_WITH -> {
+                sql.append(
+                        "LOWER(COALESCE("
+                );
+
+                sql.append(
+                        textExpression
+                );
+
+                sql.append(
+                        ", '')) LIKE ? ESCAPE '!'"
+                );
+
+                parameters.add(
+                        "%"
+                                + escapeLike(
+                                    String.valueOf(
+                                            value
+                                    ).toLowerCase(
+                                            Locale.ROOT
+                                    )
+                                )
+                );
+            }
+
+            case PRESENT -> {
+                boolean present =
+                        Boolean.TRUE.equals(
+                                value
+                        );
+
+                if (!present) {
+                    sql.append(
+                            "NOT ("
+                    );
+                }
+
+                sql.append(
+                        buildJsonExistsCondition(
+                                key
+                        )
+                );
+
+                if (!present) {
+                    sql.append(
+                            ')'
+                    );
                 }
             }
-        } catch (SQLException e) {
-            if (e.getErrorCode() == 1146 || "42S02".equals(e.getSQLState())) {
-                return Optional.empty();
-            }
-            logError("Error loading object " + id + " from " + table, e);
         }
-        return Optional.empty();
+    }
+
+    private static Object normalizeScalarParameter(Object value) {
+        if (
+                value instanceof Enum<?> enumValue
+        ) {
+            return enumValue.toString();
+        }
+
+        if (
+                value instanceof Boolean booleanValue
+        ) {
+            return Boolean.toString(
+                    booleanValue
+            );
+        }
+
+        return value;
+    }
+
+    private static String escapeLike(String value) {
+        return value
+                .replace(
+                        "!",
+                        "!!"
+                )
+                .replace(
+                        "%",
+                        "!%"
+                )
+                .replace(
+                        "_",
+                        "!_"
+                );
+    }
+
+    private static void bindParameters(PreparedStatement statement, List<Object> parameters) throws SQLException {
+        for (
+            int index = 0;
+            index < parameters.size();
+            index++
+        ) {
+            Object value =
+                    parameters.get(
+                            index
+                    );
+
+            if (
+                    value instanceof BigDecimal decimal
+            ) {
+                statement.setBigDecimal(
+                        index + 1,
+                        decimal
+                );
+            } else {
+                statement.setObject(
+                        index + 1,
+                        value
+                );
+            }
+        }
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Set<T>> loadAllAsync(Class<T> clazz) {
-        return CompletableFuture.supplyAsync(() -> loadAllSync(clazz), dbExecutor);
+    public <T extends StorageObject> Optional<T> loadByIdSync(Class<T> clazz, String identifier) {
+        ensureConnected();
+
+        String table =
+                quoteIdentifier(
+                        sanitizeIdentifier(
+                                clazz.getSimpleName()
+                        )
+                );
+
+        String sql =
+                "SELECT "
+                        + quoteIdentifier("json_data")
+                        + " FROM "
+                        + table
+                        + " WHERE "
+                        + quoteIdentifier("_id")
+                        + " = ?";
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    )
+        ) {
+            statement.setString(
+                    1,
+                    identifier
+            );
+
+            try (
+                ResultSet resultSet =
+                        statement.executeQuery()
+            ) {
+                if (
+                        resultSet.next()
+                ) {
+                    String json =
+                            resultSet.getString(
+                                    "json_data"
+                            );
+
+                    return Optional.ofNullable(
+                            mapper().fromJson(
+                                    json,
+                                    clazz
+                            )
+                    );
+                }
+            }
+
+        } catch (SQLException exception) {
+            if (
+                    isMissingTable(
+                            exception
+                    )
+            ) {
+                return Optional.empty();
+            }
+
+            logError(
+                    "Error loading object "
+                            + identifier
+                            + " from "
+                            + clazz.getSimpleName(),
+                    exception
+            );
+        }
+
+        return Optional.empty();
     }
 
     @Override
     public <T extends StorageObject> Set<T> loadAllSync(Class<T> clazz) {
         ensureConnected();
-        Set<T> results = new HashSet<>();
-        String table = sanitizeIdentifier(clazz.getSimpleName());
-        String sql = "SELECT `json_data` FROM " + table;
 
-        try (PreparedStatement stmt = getConnection().prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
+        Set<T> results =
+                new HashSet<>();
 
-            while (rs.next()) {
-                String json = rs.getString("json_data");
-                T obj = mapper().fromJson(json, clazz);
-                if (obj != null) {
-                    results.add(obj);
+        String table =
+                quoteIdentifier(
+                        sanitizeIdentifier(
+                                clazz.getSimpleName()
+                        )
+                );
+
+        String sql =
+                "SELECT "
+                        + quoteIdentifier("json_data")
+                        + " FROM "
+                        + table;
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    );
+
+            ResultSet resultSet =
+                    statement.executeQuery()
+        ) {
+            while (
+                    resultSet.next()
+            ) {
+                String json =
+                        resultSet.getString(
+                                "json_data"
+                        );
+
+                T object =
+                        mapper().fromJson(
+                                json,
+                                clazz
+                        );
+
+                if (
+                        object != null
+                ) {
+                    results.add(
+                            object
+                    );
                 }
             }
-        } catch (SQLException e) {
-            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
-                logError("Error loading all objects from " + table, e);
+
+        } catch (SQLException exception) {
+            if (
+                    !isMissingTable(
+                            exception
+                    )
+            ) {
+                logError(
+                        "Error loading all objects from "
+                                + clazz.getSimpleName(),
+                        exception
+                );
             }
         }
+
         return results;
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Optional<ReferencedObject>> loadByExtraIdentifierAsync(Class<T> clazz, String extraId) {
-        return CompletableFuture.supplyAsync(() -> loadByExtraIdentifierSync(clazz, extraId), dbExecutor);
+    public <T extends StorageObject> void deleteByIdSync(Class<T> clazz, String identifier) {
+        ensureConnected();
+
+        deleteLegacyReferencesById(
+                clazz,
+                identifier
+        );
+
+        String table =
+                quoteIdentifier(
+                        sanitizeIdentifier(
+                                clazz.getSimpleName()
+                        )
+                );
+
+        String sql =
+                "DELETE FROM "
+                        + table
+                        + " WHERE "
+                        + quoteIdentifier("_id")
+                        + " = ?";
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    )
+        ) {
+            statement.setString(
+                    1,
+                    identifier
+            );
+
+            statement.executeUpdate();
+
+        } catch (SQLException exception) {
+            if (
+                    !isMissingTable(
+                            exception
+                    )
+            ) {
+                logError(
+                        "Error deleting object "
+                                + identifier
+                                + " from "
+                                + clazz.getSimpleName(),
+                        exception
+                );
+            }
+        }
+    }
+
+    private <T extends StorageObject> void deleteLegacyReferencesById(Class<T> clazz, String identifier) {
+        String table =
+                quoteIdentifier(
+                        sanitizeIdentifier(
+                                clazz.getSimpleName()
+                                        + "_StringNaming"
+                        )
+                );
+
+        String sql =
+                "DELETE FROM "
+                        + table
+                        + " WHERE "
+                        + quoteIdentifier("referenced")
+                        + " = ?";
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            sql
+                    )
+        ) {
+            statement.setString(
+                    1,
+                    identifier
+            );
+
+            statement.executeUpdate();
+
+        } catch (SQLException exception) {
+            if (
+                    !isMissingTable(
+                            exception
+                    )
+            ) {
+                logError(
+                        "Error cleaning legacy references for "
+                                + identifier,
+                        exception
+                );
+            }
+        }
     }
 
     @Override
-    public <T extends StorageObject> Optional<ReferencedObject> loadByExtraIdentifierSync(Class<T> clazz, String extraId) {
+    public <T extends StorageObject>
+    void deleteAllSync(
+            Class<T> clazz
+    ) {
         ensureConnected();
-        String table = sanitizeIdentifier(clazz.getSimpleName() + "_StringNaming");
-        String key = extraId.toLowerCase(Locale.ENGLISH);
-        String sql = "SELECT `referenced` FROM " + table + " WHERE `_id` = ?";
 
-        try (PreparedStatement stmt = getConnection().prepareStatement(sql)) {
-            stmt.setString(1, key);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return Optional.of(new ReferencedObject(extraId, rs.getString("referenced")));
+        deleteAllFromTable(
+                sanitizeIdentifier(
+                        clazz.getSimpleName()
+                )
+        );
+
+        deleteAllFromTable(
+                sanitizeIdentifier(
+                        clazz.getSimpleName()
+                                + "_StringNaming"
+                )
+        );
+    }
+
+    private void deleteAllFromTable(
+            String rawTable
+    ) {
+        String sql =
+                "DELETE FROM "
+                        + quoteIdentifier(
+                            rawTable
+                        );
+
+        try (
+            Connection connection =
+                    getConnection();
+
+            Statement statement =
+                    connection.createStatement()
+        ) {
+            statement.executeUpdate(
+                    sql
+            );
+
+        } catch (SQLException exception) {
+            if (
+                    !isMissingTable(
+                            exception
+                    )
+            ) {
+                logError(
+                        "Error deleting all records from "
+                                + rawTable,
+                        exception
+                );
+            }
+        }
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz, StorageQuery query) {
+        if (
+                query == null
+                        || query.isEmpty()
+        ) {
+            deleteAllSync(
+                    clazz
+            );
+
+            return;
+        }
+
+        Set<T> matching =
+                matchSync(
+                        clazz,
+                        query
+                );
+
+        for (
+            T object :
+            matching
+        ) {
+            String identifier =
+                    extractIdentifier(
+                            object
+                    );
+
+            if (
+                    identifier != null
+            ) {
+                deleteByIdSync(
+                        clazz,
+                        identifier
+                );
+            }
+        }
+    }
+
+    protected String extractIdentifier(StorageObject object) {
+        for (
+            Class<?> current =
+                    object.getClass();
+
+            current != null
+                    && current != Object.class;
+
+            current =
+                    current.getSuperclass()
+        ) {
+            for (
+                Field field :
+                current.getDeclaredFields()
+            ) {
+                if (
+                        !field.isAnnotationPresent(
+                                StorageIdentifier.class
+                        )
+                ) {
+                    continue;
+                }
+
+                field.setAccessible(
+                        true
+                );
+
+                try {
+                    Object value =
+                            field.get(
+                                    object
+                            );
+
+                    return value == null
+                            ? null
+                            : value.toString();
+
+                } catch (ReflectiveOperationException exception) {
+                    logError(
+                            "Failed to extract storage identifier",
+                            exception
+                    );
+
+                    return null;
                 }
             }
-        } catch (SQLException e) {
-            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
-                logError("Error loading extra identifier " + extraId, e);
-            }
         }
-        return Optional.empty();
-    }
 
-    @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteByIdAsync(Class<T> clazz, String id) {
-        return CompletableFuture.runAsync(() -> deleteByIdSync(clazz, id), dbExecutor);
-    }
-
-    @Override
-    public <T extends StorageObject> void deleteByIdSync(Class<T> clazz, String id) {
-        ensureConnected();
-        String table = sanitizeIdentifier(clazz.getSimpleName());
-        String sql = "DELETE FROM " + table + " WHERE `_id` = ?";
-        try (PreparedStatement stmt = getConnection().prepareStatement(sql)) {
-            stmt.setString(1, id);
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            if (e.getErrorCode() != 1146 && !"42S02".equals(e.getSQLState())) {
-                logError("Error deleting object " + id, e);
-            }
-        }
-    }
-
-    private String extractIdentifier(StorageObject obj) {
-        for (Class<?> c = obj.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            for (var field : c.getDeclaredFields()) {
-                if (field.isAnnotationPresent(StorageIdentifier.class)) {
-                    field.setAccessible(true);
-                    try {
-                        Object val = field.get(obj);
-                        return val != null ? val.toString() : null;
-                    } catch (Exception e) {
-                        logError("Failed to extract identifier", e);
-                        return null;
-                    }
-                }
-            }
-        }
         return null;
     }
 
-    private Set<String> extractExtraIdentifier(StorageObject obj) {
-        Set<String> extras = new HashSet<>();
-        for (Class<?> c = obj.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            for (var field : c.getDeclaredFields()) {
-                if (field.isAnnotationPresent(StorageExtraIdentifier.class)) {
-                    field.setAccessible(true);
-                    try {
-                        Object val = field.get(obj);
-                        if (val != null) extras.add(val.toString());
-                    } catch (Exception e) {
-                        logError("Failed to extract extra identifier", e);
+    protected Set<String> extractExtraIdentifier(StorageObject object) {
+        Set<String> extraIdentifiers =
+                new HashSet<>();
+
+        for (
+            Class<?> current =
+                    object.getClass();
+
+            current != null
+                    && current != Object.class;
+
+            current =
+                    current.getSuperclass()
+        ) {
+            for (
+                Field field :
+                current.getDeclaredFields()
+            ) {
+                if (
+                        !field.isAnnotationPresent(
+                                StorageExtraIdentifier.class
+                        )
+                ) {
+                    continue;
+                }
+
+                field.setAccessible(
+                        true
+                );
+
+                try {
+                    Object value =
+                            field.get(
+                                    object
+                            );
+
+                    if (
+                            value != null
+                    ) {
+                        extraIdentifiers.add(
+                                value.toString()
+                        );
                     }
+
+                } catch (ReflectiveOperationException exception) {
+                    logError(
+                            "Failed to extract extra identifier",
+                            exception
+                    );
                 }
             }
         }
-        return extras;
+
+        return extraIdentifiers;
     }
 
-    private static String sanitizeIdentifier(String s) {
-        if (s == null) throw new IllegalArgumentException("Identifier null");
-        String cleaned = s.replaceAll("[^A-Za-z0-9_]", "_");
-        return "`" + cleaned + "`";
+    protected static String sanitizeIdentifier(
+            String identifier
+    ) {
+        if (
+                identifier == null
+        ) {
+            throw new IllegalArgumentException(
+                    "SQL identifier cannot be null"
+            );
+        }
+
+        String cleaned =
+                identifier.replaceAll(
+                        "[^A-Za-z0-9_]",
+                        "_"
+                );
+
+        if (
+                cleaned.isBlank()
+        ) {
+            throw new IllegalArgumentException(
+                    "SQL identifier cannot be blank"
+            );
+        }
+
+        return cleaned;
     }
 
-    public abstract Connection getConnection() throws SQLException;
+    protected static String sanitizeJsonKey(
+            String key
+    ) {
+        if (
+                key == null
+                        || key.isBlank()
+        ) {
+            throw new IllegalArgumentException(
+                    "JSON key cannot be null or blank"
+            );
+        }
+
+        if (
+                !key.matches(
+                        "[A-Za-z0-9_-]+"
+                )
+        ) {
+            throw new IllegalArgumentException(
+                    "Unsafe JSON key: "
+                            + key
+            );
+        }
+
+        return key;
+    }
 }

@@ -27,7 +27,6 @@ public class SkinUtil {
         .maximumSize(500)
         .buildAsync();
 
-    // Arreglo constante para optimizar la conversión de colores
     private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
 
     private static final boolean CONTAINS_SKIN_RESTORER = PluginConsumer.ofUnchecked(
@@ -39,24 +38,14 @@ public class SkinUtil {
         () -> false
     );
 
-    /**
-     * Devuelve el CompletableFuture con la cabeza del jugador.
-     * Si múltiples hilos piden el mismo UUID a la vez, Caffeine agrupa las peticiones
-     * y ejecuta fetchHeadSync solo una vez.
-     */
     public static CompletableFuture<BufferedImage> getPlayerHeadAsync(Player player) {
         return HEAD_CACHE.get(player.getUniqueId(), (uuid, executor) ->
                 CompletableFuture.supplyAsync(() -> fetchHeadSync(player), executor)
         );
     }
 
-    /**
-     * Lógica síncrona de obtención (Ejecutada en un hilo secundario por CompletableFuture)
-     */
     private static BufferedImage fetchHeadSync(Player player) {
         try {
-            // OPTIMIZACIÓN PAPER API: Intentar obtener la URL de textura directamente del perfil.
-            // Esto usa la CDN de Mojang (textures.minecraft.net), es rapidísimo y NO tiene rate-limits.
             URL skinUrl = player.getPlayerProfile().getTextures().getSkin();
             if (skinUrl != null) {
                 BufferedImage fullSkin = ImageIO.read(skinUrl);
@@ -93,9 +82,6 @@ public class SkinUtil {
         throw new RuntimeException("No se pudo obtener la cabeza del jugador: " + player.getName());
     }
 
-    /**
-     * Convierte la imagen a líneas de texto de Minecraft.
-     */
     public static TextReplacer convertToLines(BufferedImage image) {
         TextReplacer replacer = TextReplacer.builder();
 
@@ -110,20 +96,15 @@ public class SkinUtil {
         return replacer;
     }
 
-    /**
-     * OPTIMIZACIÓN MICRO-RENDIMIENTO: Convertidor hexadecimal Bitwise.
-     * Evita alojar objetos (new Color()) y usar Regex (String.format()),
-     * lo cual era letal al ejecutarse 64 veces por cada cabeza generada.
-     */
     private static String toFastHexBlock(int rgb) {
         char[] hex = new char[9];
         hex[0] = '&';
         hex[1] = '#';
-        hex[2] = HEX_CHARS[(rgb >> 20) & 0xF]; // Red (primeros 4 bits)
-        hex[3] = HEX_CHARS[(rgb >> 16) & 0xF]; // Red (últimos 4 bits)
-        hex[4] = HEX_CHARS[(rgb >> 12) & 0xF]; // Green
+        hex[2] = HEX_CHARS[(rgb >> 20) & 0xF];
+        hex[3] = HEX_CHARS[(rgb >> 16) & 0xF];
+        hex[4] = HEX_CHARS[(rgb >> 12) & 0xF];
         hex[5] = HEX_CHARS[(rgb >> 8) & 0xF];
-        hex[6] = HEX_CHARS[(rgb >> 4) & 0xF];  // Blue
+        hex[6] = HEX_CHARS[(rgb >> 4) & 0xF];
         hex[7] = HEX_CHARS[rgb & 0xF];
         hex[8] = '█';
         return new String(hex);

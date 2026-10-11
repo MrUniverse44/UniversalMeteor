@@ -4,6 +4,7 @@ import me.blueslime.meteor.platforms.api.service.PlatformService;
 import me.blueslime.meteor.storage.interfaces.*;
 import me.blueslime.meteor.utilities.consumer.PluginConsumer;
 import org.bson.Document;
+import org.bson.types.Binary;
 
 import java.lang.reflect.*;
 import java.math.BigDecimal;
@@ -189,6 +190,10 @@ public class ObjectMapper implements PlatformService {
             return doc;
         }
 
+        if (value instanceof byte[] bytes) {
+            return new Binary(bytes);
+        }
+
         if (value.getClass().isArray()) {
             int len = Array.getLength(value);
             List<Object> list = new ArrayList<>(len);
@@ -223,6 +228,16 @@ public class ObjectMapper implements PlatformService {
 
         if (expected.isEnum() && raw instanceof String) {
             return convertValue(expected, (String) raw);
+        }
+
+        if (expected == byte[].class) {
+            if (raw instanceof Binary binary) {
+                return binary.getData();
+            }
+
+            if (raw instanceof byte[] bytes) {
+                return bytes;
+            }
         }
 
         if (Number.class.isAssignableFrom(expected) || expected.isPrimitive()) {

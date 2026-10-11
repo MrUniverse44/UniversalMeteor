@@ -34,7 +34,7 @@ public class DefaultPlatformTasks implements PlatformTasks, AutoCloseable, Imple
 
     /**
      * Timer only.
-     *
+     * <br>
      * IMPORTANT:
      * User code NEVER runs here.
      */
@@ -42,7 +42,7 @@ public class DefaultPlatformTasks implements PlatformTasks, AutoCloseable, Imple
 
     /**
      * Generic platform "sync" executor.
-     *
+     * <br>
      * Exactly one thread because "sync" must preserve
      * serialized/main-thread-like semantics.
      */
@@ -367,10 +367,10 @@ public class DefaultPlatformTasks implements PlatformTasks, AutoCloseable, Imple
 
     /**
      * Fixed rate.
-     *
+     * <br>
      * The timer may fire while the previous run is active,
      * but DefaultTaskHandle.beginExecution() prevents overlap.
-     *
+     * <br>
      * That occurrence is skipped instead of queued.
      */
     private void scheduleFixedRate(
@@ -412,7 +412,7 @@ public class DefaultPlatformTasks implements PlatformTasks, AutoCloseable, Imple
 
     /**
      * True fixed delay.
-     *
+     * <br>
      * The next timer is created only AFTER the previous
      * invocation has finished.
      */

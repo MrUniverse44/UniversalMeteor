@@ -1,19 +1,28 @@
 package me.blueslime.meteor.storage.types;
 
-import com.mongodb.client.result.DeleteResult;
-import me.blueslime.meteor.storage.database.StorageDatabase;
-import me.blueslime.meteor.storage.interfaces.*;
-import me.blueslime.meteor.storage.query.StorageQuery;
-import me.blueslime.meteor.storage.references.ReferencedObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.ReplaceOptions;
+import com.mongodb.client.result.DeleteResult;
+import me.blueslime.meteor.storage.database.StorageDatabase;
+import me.blueslime.meteor.storage.interfaces.StorageExtraIdentifier;
+import me.blueslime.meteor.storage.interfaces.StorageIdentifier;
+import me.blueslime.meteor.storage.interfaces.StorageObject;
+import me.blueslime.meteor.storage.query.StorageQuery;
+import me.blueslime.meteor.storage.references.ReferencedObject;
 import org.bson.Document;
 
-import java.util.*;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static com.mongodb.client.model.Filters.eq;
@@ -21,8 +30,8 @@ import static com.mongodb.client.model.Filters.eq;
 @SuppressWarnings("unused")
 public class MongoDatabase extends StorageDatabase {
 
-    private MongoClient mongoClient;
-    private com.mongodb.client.MongoDatabase database;
+    private volatile MongoClient mongoClient;
+    private volatile com.mongodb.client.MongoDatabase database;
 
     private final String uri;
     private final String databaseName;
@@ -33,355 +42,679 @@ public class MongoDatabase extends StorageDatabase {
     }
 
     @Override
-    public void connect() {
-        MongoClientSettings settings = MongoClientSettings.builder()
-                .applyConnectionString(new ConnectionString(uri))
+    public synchronized void connect() {
+        if (
+            mongoClient != null
+            && database != null
+        ) {
+            return;
+        }
+
+        initializeAsyncExecutor();
+
+        MongoClientSettings settings =
+            MongoClientSettings.builder()
+                .applyConnectionString(
+                    new ConnectionString(
+                        uri
+                    )
+                )
                 .build();
-        this.mongoClient = MongoClients.create(settings);
-        this.database = mongoClient.getDatabase(databaseName);
+
+        MongoClient client =
+                MongoClients.create(
+                        settings
+                );
+
+        this.mongoClient =
+                client;
+
+        this.database =
+                client.getDatabase(
+                        databaseName
+                );
     }
 
     @Override
-    public void closeConnection() {
-        if (mongoClient != null) mongoClient.close();
+    public synchronized void closeConnection() {
+        /*
+         * Wait for already-running async operations before closing the
+         * synchronous MongoDB driver underneath them.
+         */
+        shutdownAsyncExecutor();
+
+        MongoClient client =
+                mongoClient;
+
+        mongoClient = null;
+        database = null;
+
+        if (
+                client != null
+        ) {
+            client.close();
+        }
     }
 
     private void ensureConnected() {
-        if (database == null) {
-            throw new IllegalStateException("MongoDatabase is null; call connect() first.");
+        if (
+            mongoClient == null
+            || database == null
+        ) {
+            throw new IllegalStateException(
+                    "MongoDatabase is not connected; call connect() first."
+            );
         }
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Set<T>> matchAsync(Class<T> clazz, StorageQuery query) {
-        ensureConnected();
-        return CompletableFuture.supplyAsync(() -> matchSync(clazz, query));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Document buildBsonFilter(StorageQuery query) {
-        Document bsonFilter = new Document();
-        if (query != null && query.getFilters() != null) {
-            for (Map.Entry<String, Object> entry : query.getFilters().entrySet()) {
-                Object val = entry.getValue();
-                if (val instanceof Map) {
-                    bsonFilter.put(entry.getKey(), new Document((Map<String, Object>) val));
-                } else {
-                    bsonFilter.put(entry.getKey(), val);
-                }
-            }
-        }
-        return bsonFilter;
     }
 
     @Override
     public <T extends StorageObject> Set<T> matchSync(Class<T> clazz, StorageQuery query) {
         ensureConnected();
 
-        Set<T> results = new LinkedHashSet<>();
-        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
+        StorageQuery effectiveQuery =
+                query == null
+                        ? new StorageQuery()
+                        : query;
 
-        Document bsonFilter = buildBsonFilter(query);
+        Set<T> results =
+                new LinkedHashSet<>();
 
-        var findIterable = coll.find(bsonFilter);
+        MongoCollection<Document> collection =
+                database.getCollection(
+                        clazz.getSimpleName()
+                );
 
-        if (query.getSortBy() != null) {
-            findIterable.sort(new Document(query.getSortBy(), query.isSortDescending() ? -1 : 1));
+        Document filter =
+                buildBsonFilter(
+                        effectiveQuery
+                );
+
+        var iterable =
+                collection.find(
+                        filter
+                );
+
+        if (
+                effectiveQuery.getSortBy() != null
+        ) {
+            iterable.sort(
+                    new Document(
+                            effectiveQuery.getSortBy(),
+                            effectiveQuery.isSortDescending()
+                                    ? -1
+                                    : 1
+                    )
+            );
         }
 
-        if (query.getLimit() != null) {
-            findIterable.limit(query.getLimit());
+        if (
+                effectiveQuery.getLimit() != null
+        ) {
+            iterable.limit(
+                    effectiveQuery.getLimit()
+            );
         }
 
-        for (Document doc : findIterable) {
-            T obj = mapper().fromDocument(clazz, doc);
-            if (obj != null) results.add(obj);
+        for (
+            Document document :
+            iterable
+        ) {
+            T object =
+                    mapper().fromDocument(
+                            clazz,
+                            document
+                    );
+
+            if (
+                    object != null
+            ) {
+                results.add(
+                        object
+                );
+            }
         }
 
         return results;
     }
 
-    @Override
-    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz, StorageQuery query) {
-        ensureConnected();
-        return CompletableFuture.supplyAsync(() -> countSync(clazz, query));
+    private Document buildBsonFilter(StorageQuery query) {
+        if (
+            query == null
+            || query
+                .getConditions()
+                .isEmpty()
+        ) {
+            return new Document();
+        }
+
+        List<Document> conditions =
+                new ArrayList<>();
+
+        for (
+            StorageQuery.Condition condition :
+            query.getConditions()
+        ) {
+            String key = condition.key();
+
+            Object value = normalizeMongoValue(condition.value());
+
+            Document predicate =
+                    switch (
+                        condition.operator()
+                    ) {
+                        case EQUALS ->
+                                new Document(
+                                        key,
+                                        value
+                                );
+
+                        case GREATER_THAN ->
+                                new Document(
+                                        key,
+                                        new Document(
+                                                "$gt",
+                                                value
+                                        )
+                                );
+
+                        case LESS_THAN ->
+                                new Document(
+                                        key,
+                                        new Document(
+                                                "$lt",
+                                                value
+                                        )
+                                );
+
+                        case CONTAINS ->
+                                new Document(
+                                        key,
+                                        new Document(
+                                                "$regex",
+                                                ".*"
+                                                        + java.util.regex.Pattern.quote(
+                                                            String.valueOf(
+                                                                    condition.value()
+                                                            )
+                                                        )
+                                                        + ".*"
+                                        ).append(
+                                                "$options",
+                                                "i"
+                                        )
+                                );
+
+                        case STARTS_WITH ->
+                                new Document(
+                                        key,
+                                        new Document(
+                                                "$regex",
+                                                "^"
+                                                        + java.util.regex.Pattern.quote(
+                                                            String.valueOf(
+                                                                    condition.value()
+                                                            )
+                                                        )
+                                        ).append(
+                                                "$options",
+                                                "i"
+                                        )
+                                );
+
+                        case ENDS_WITH ->
+                                new Document(
+                                        key,
+                                        new Document(
+                                                "$regex",
+                                                java.util.regex.Pattern.quote(
+                                                        String.valueOf(
+                                                                condition.value()
+                                                        )
+                                                )
+                                                        + "$"
+                                        ).append(
+                                                "$options",
+                                                "i"
+                                        )
+                                );
+
+                        case PRESENT ->
+                                new Document(
+                                        key,
+                                        new Document(
+                                                "$exists",
+                                                Boolean.TRUE.equals(
+                                                        condition.value()
+                                                )
+                                        )
+                                );
+                    };
+
+            conditions.add(
+                    predicate
+            );
+        }
+
+        if (
+                conditions.size() == 1
+        ) {
+            return conditions.getFirst();
+        }
+
+        return new Document(
+                "$and",
+                conditions
+        );
+    }
+
+    private static Object normalizeMongoValue(
+            Object value
+    ) {
+        if (
+                value instanceof Enum<?> enumValue
+        ) {
+            return enumValue.toString();
+        }
+
+        return value;
     }
 
     @Override
     public <T extends StorageObject> long countSync(Class<T> clazz, StorageQuery query) {
         ensureConnected();
-        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
 
-        Document bsonFilter = buildBsonFilter(query);
+        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName());
 
-        return coll.countDocuments(bsonFilter);
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz) {
-        ensureConnected();
-        return CompletableFuture.supplyAsync(() -> countSync(clazz, null));
+        return collection.countDocuments(buildBsonFilter(query));
     }
 
     @Override
     public <T extends StorageObject> long countSync(Class<T> clazz) {
-        return countSync(clazz, null);
+        return countSync(
+            clazz,
+            null
+        );
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz) {
-        return CompletableFuture.runAsync(() -> deleteAllSync(clazz));
-    }
-
-    /**
-     * Verify async if an extra identifier is being used
-     * @param clazz Entity class
-     * @param extraIdentifier text to verify
-     * @return true if already exists otherwise returns else
-     */
-    public <T extends StorageObject> boolean checkExtraIdentifierExistsSync(Class<T> clazz, String extraIdentifier) {
-        ensureConnected();
-
-        String extra = extraIdentifier.toLowerCase(Locale.ENGLISH);
-        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName() + "-StringNaming");
-
-        Document doc = collection.find(eq("_id", extra)).first();
-
-        return doc != null;
-    }
-
-    /**
-     * Verify async if an extra identifier is being used
-     */
-    public <T extends StorageObject> CompletableFuture<Boolean> checkExtraIdentifierExistsAsync(Class<T> clazz, String extraIdentifier) {
-        return CompletableFuture.supplyAsync(() -> checkExtraIdentifierExistsSync(clazz, extraIdentifier));
-    }
-
-    public <T extends StorageObject> boolean deleteExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
-        ensureConnected();
-
-        String extra = extraIdentifier.toLowerCase(Locale.ENGLISH);
-        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName() + "-StringNaming");
-        DeleteResult result = collection.deleteOne(eq("_id", extra));
-
-        return result.getDeletedCount() > 0;
-    }
-
-    public <T extends StorageObject> CompletableFuture<Boolean> deleteExtraIdentifierAsync(Class<T> clazz, String extraIdentifier) {
-        return CompletableFuture.supplyAsync(() -> {
-            return deleteExtraIdentifierSync(clazz, extraIdentifier);
-        });
-    }
-
-    @Override
-    public <T extends StorageObject> void deleteAllSync(Class<T> clazz) {
-        ensureConnected();
-        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
-        coll.deleteMany(new Document());
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz, StorageQuery query) {
-        return CompletableFuture.runAsync(() -> deleteAllSync(clazz, query));
-    }
-
-    @Override
-    public <T extends StorageObject> void deleteAllSync(Class<T> clazz, StorageQuery query) {
-        ensureConnected();
-        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
-
-        Document bsonFilter = buildBsonFilter(query);
-
-        coll.deleteMany(bsonFilter);
-    }
-
-    /**
-     * Checks whether the underlying handle is an instance of the given type.
-     *
-     * @param type The class to check compatibility with.
-     * @return true if the handle is non-null and can be cast to {@code type}, false otherwise.
-     */
-    @Override
-    public boolean is(Class<?> type) {
-        Object handle = database;
-        if (handle == null || type == null) return false;
-        if (type == Object.class) return true;
-
-        Class<?> check = type.isPrimitive() ? primitiveToWrapper(type) : type;
-        return check.isInstance(handle);
-    }
-
-    /**
-     * Casts the underlying handle to a specific class type if compatible.
-     * <p>
-     * If the handle is not compatible with {@code type} this method returns {@code null}
-     * (no ClassCastException will be thrown).
-     *
-     * @param type The class to cast the handle to.
-     * @param <T>  The type of the class.
-     * @return The cast handle, or {@code null} if not compatible.
-     */
-    @Override
-    @SuppressWarnings("unchecked")
-    public <T> T to(Class<T> type) {
-        return is(type) ? (T) database : null;
-    }
-
-    @Override
-    public CompletableFuture<Void> saveOrUpdateAsync(StorageObject obj) {
-        return CompletableFuture.runAsync(() -> saveOrUpdateSync(obj));
-    }
-
-    @Override
-    public void saveOrUpdateSync(StorageObject obj) {
-        ensureConnected();
-
-        Document doc = mapper().toDocument(obj);
-
-        String collectionName = obj.getClass().getSimpleName();
-        String id = extractIdentifier(obj);
-
-        MongoCollection<Document> coll = database.getCollection(collectionName);
-        ReplaceOptions opts = new ReplaceOptions().upsert(true);
-
-        if (id != null) {
-            coll.replaceOne(eq("_id", id), doc, opts);
-        } else {
-            coll.insertOne(doc);
+    public void saveOrUpdateSync(StorageObject object) {
+        if (object == null) {
+            return;
         }
 
-        Set<String> extraId = extractExtraIdentifier(obj);
-        if (id != null && !extraId.isEmpty()) {
-            MongoCollection<Document> collectionNaming = database.getCollection(collectionName + "-StringNaming");
+        ensureConnected();
 
-            Document idFetch = new Document("referenced", id);
+        Document document = mapper().toDocument(object);
 
-            for (String extra : extraId) {
-                Document completed = new Document();
-                completed.append("extra", extra);
-                completed.append("data", idFetch);
+        String collectionName = object.getClass().getSimpleName();
 
-                collectionNaming.replaceOne(
-                        eq("_id", extra.toLowerCase(Locale.ENGLISH)),
-                        completed,
-                        opts
+        String identifier = extractIdentifier(object);
+
+        MongoCollection<Document> collection = database.getCollection(collectionName);
+
+        ReplaceOptions options = new ReplaceOptions().upsert(true);
+
+        if (identifier != null) {
+            collection.replaceOne(
+                eq(
+                    "_id",
+                    identifier
+                ),
+                document,
+                options
+            );
+        } else {
+            collection.insertOne(
+                    document
+            );
+        }
+
+        /*
+         * Legacy support only. New code should use StorageQuery and real
+         * database indexes instead of StorageExtraIdentifier.
+         */
+        Set<String> extraIdentifiers = extractExtraIdentifier(object);
+
+        if (
+            identifier != null
+            && !extraIdentifiers.isEmpty()
+        ) {
+            MongoCollection<Document> namingCollection = database.getCollection(collectionName + "-StringNaming");
+
+            Document reference = new Document("referenced", identifier);
+
+            for (
+                String extra :
+                extraIdentifiers
+            ) {
+                Document completed =
+                    new Document()
+                        .append(
+                            "extra",
+                            extra
+                        )
+                        .append(
+                            "data",
+                            reference
+                        );
+
+                namingCollection.replaceOne(
+                    eq(
+                        "_id",
+                        extra.toLowerCase(
+                            Locale.ENGLISH
+                        )
+                    ),
+                    completed,
+                    options
                 );
             }
         }
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Optional<ReferencedObject>> loadByExtraIdentifierAsync(Class<T> clazz, String extraIdentifier) {
+    public <T extends StorageObject> Optional<T> loadByIdSync(Class<T> clazz, String identifier) {
         ensureConnected();
-        return CompletableFuture.supplyAsync(() -> loadByExtraIdentifierSync(clazz, extraIdentifier));
+
+        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName());
+
+        Document document = collection.find(eq("_id", identifier)).first();
+
+        if (document == null) {
+            return Optional.empty();
+        }
+
+        return Optional.ofNullable(mapper().fromDocument(clazz, document));
+    }
+
+    @Override
+    public <T extends StorageObject> Set<T> loadAllSync(Class<T> clazz) {
+        ensureConnected();
+
+        Set<T> results = new LinkedHashSet<>();
+
+        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName());
+
+        for (
+            Document document :
+            collection.find()
+        ) {
+            T object = mapper().fromDocument(clazz, document);
+
+            if (
+                object != null
+            ) {
+                results.add(
+                        object
+                );
+            }
+        }
+
+        return results;
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteByIdSync(Class<T> clazz, String identifier) {
+        ensureConnected();
+
+        String collectionName =
+                clazz.getSimpleName();
+
+        database.getCollection(collectionName + "-StringNaming").deleteMany(eq("data.referenced", identifier));
+
+        database.getCollection(collectionName).deleteOne(eq("_id", identifier));
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz) {
+        ensureConnected();
+
+        String collectionName = clazz.getSimpleName();
+
+        database.getCollection(collectionName).deleteMany(new Document());
+
+        database.getCollection(collectionName + "-StringNaming").deleteMany(new Document());
+    }
+
+    @Override
+    public <T extends StorageObject> void deleteAllSync(Class<T> clazz, StorageQuery query) {
+        if (
+            query == null
+            || query.isEmpty()
+        ) {
+            deleteAllSync(
+                    clazz
+            );
+
+            return;
+        }
+
+        Set<T> matching = matchSync(clazz, query);
+
+        for (
+            T object :
+            matching
+        ) {
+            String identifier = extractIdentifier(object);
+
+            if (
+                identifier != null
+            ) {
+                deleteByIdSync(
+                    clazz,
+                    identifier
+                );
+            }
+        }
+    }
+
+    /*
+     * ============================================================
+     * LEGACY EXTRA IDENTIFIERS
+     * ============================================================
+     */
+
+    @Deprecated(forRemoval = false)
+    public <T extends StorageObject> boolean checkExtraIdentifierExistsSync(Class<T> clazz, String extraIdentifier) {
+        ensureConnected();
+
+        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName() + "-StringNaming");
+
+        return collection.find(eq("_id", extraIdentifier.toLowerCase(Locale.ENGLISH))).first() != null;
+    }
+
+    @Deprecated(forRemoval = false)
+    public <T extends StorageObject> CompletableFuture<Boolean> checkExtraIdentifierExistsAsync(Class<T> clazz, String extraIdentifier) {
+        return supplyAsync(
+            () -> checkExtraIdentifierExistsSync(
+                clazz,
+                extraIdentifier
+            )
+        );
+    }
+
+    @Override
+    public <T extends StorageObject> boolean deleteExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
+        ensureConnected();
+
+        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName() + "-StringNaming");
+
+        DeleteResult result = collection.deleteOne(eq("_id", extraIdentifier.toLowerCase(Locale.ENGLISH)));
+
+        return result.getDeletedCount()
+                > 0;
     }
 
     @Override
     public <T extends StorageObject> Optional<ReferencedObject> loadByExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
         ensureConnected();
 
-        String extra = extraIdentifier.toLowerCase(Locale.ENGLISH);
+        String normalized = extraIdentifier.toLowerCase(Locale.ENGLISH);
 
-        MongoCollection<Document> collection = database.getCollection(clazz.getSimpleName() + "-StringNaming");
-        Document doc = collection.find(eq("_id", extra)).first();
+        MongoCollection<Document> collection =
+                database.getCollection(
+                        clazz.getSimpleName()
+                                + "-StringNaming"
+                );
 
-        if (doc != null) {
-            String original = doc.getString("extra");
-            Document document = (Document) doc.get("data");
+        Document document = collection.find(eq("_id", normalized)).first();
 
-            if (document != null) {
-                String reference = document.getString("referenced");
-                return Optional.of(new ReferencedObject(original, reference));
-            }
+        if (
+            document == null
+        ) {
+            return Optional.empty();
         }
-        return Optional.empty();
-    }
 
-    @Override
-    public <T extends StorageObject> CompletableFuture<Optional<T>> loadByIdAsync(Class<T> clazz, String identifier) {
-        ensureConnected();
-        return CompletableFuture.supplyAsync(() -> loadByIdSync(clazz, identifier));
-    }
+        String original = document.getString("extra");
 
-    @Override
-    public <T extends StorageObject> Optional<T> loadByIdSync(Class<T> clazz, String identifier) {
-        ensureConnected();
-        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
+        Document data = document.get("data", Document.class);
 
-        Document doc = coll.find(eq("_id", identifier)).first();
-        if (doc == null) return Optional.empty();
-
-        T obj = mapper().fromDocument(clazz, doc);
-
-        return Optional.ofNullable(obj);
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteByIdAsync(Class<T> clazz, String identifier) {
-        return CompletableFuture.runAsync(() -> deleteByIdSync(clazz, identifier));
-    }
-
-    @Override
-    public <T extends StorageObject> void deleteByIdSync(Class<T> clazz, String identifier) {
-        ensureConnected();
-        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
-        coll.deleteOne(eq("_id", identifier));
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Set<T>> loadAllAsync(Class<T> clazz) {
-        ensureConnected();
-        return CompletableFuture.supplyAsync(() -> loadAllSync(clazz));
-    }
-
-    @Override
-    public <T extends StorageObject> Set<T> loadAllSync(Class<T> clazz) {
-        ensureConnected();
-        Set<T> results = new HashSet<>();
-        MongoCollection<Document> coll = database.getCollection(clazz.getSimpleName());
-
-        for (Document doc : coll.find()) {
-            T obj = mapper().fromDocument(clazz, doc);
-            if (obj != null) results.add(obj);
+        if (
+            data == null
+        ) {
+            return Optional.empty();
         }
-        return results;
+
+        String reference = data.getString("referenced");
+
+        if (
+            reference == null
+        ) {
+            return Optional.empty();
+        }
+
+        return Optional.of(
+            new ReferencedObject(
+                original,
+                reference
+            )
+        );
     }
 
-    private String extractIdentifier(StorageObject obj) {
-        for (Class<?> c = obj.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            for (var field : c.getDeclaredFields()) {
-                if (field.isAnnotationPresent(StorageIdentifier.class)) {
-                    field.setAccessible(true);
-                    try {
-                        Object val = field.get(obj);
-                        return val != null ? val.toString() : null;
-                    } catch (Exception e) {
-                        logError("Failed to extract identifier", e);
-                        return null;
-                    }
+    @Override
+    public boolean is(Class<?> type) {
+        Object handle = database;
+
+        if (
+            handle == null
+            || type == null
+        ) {
+            return false;
+        }
+
+        if (
+            type == Object.class
+        ) {
+            return true;
+        }
+
+        Class<?> check =
+            type.isPrimitive()
+                ? primitiveToWrapper(
+                    type
+                )
+                : type;
+
+        return check.isInstance(
+            handle
+        );
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T to(
+        Class<T> type
+    ) {
+        return is(type)
+            ? (T) database
+            : null;
+    }
+
+    private String extractIdentifier(StorageObject object) {
+        for (
+            Class<?> current = object.getClass();
+
+            current != null && current != Object.class;
+
+            current = current.getSuperclass()
+        ) {
+            for (
+                Field field :
+                current.getDeclaredFields()
+            ) {
+                if (
+                    !field.isAnnotationPresent(
+                        StorageIdentifier.class
+                    )
+                ) {
+                    continue;
+                }
+
+                field.setAccessible(
+                    true
+                );
+
+                try {
+                    Object value = field.get(object);
+
+                    return value == null
+                        ? null
+                        : value.toString();
+
+                } catch (ReflectiveOperationException exception) {
+                    logError(
+                        "Failed to extract identifier",
+                        exception
+                    );
+
+                    return null;
                 }
             }
         }
+
         return null;
     }
 
-    private Set<String> extractExtraIdentifier(StorageObject obj) {
+    private Set<String> extractExtraIdentifier(StorageObject object) {
         Set<String> extraIdentifiers = new HashSet<>();
-        for (Class<?> c = obj.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
-            for (var field : c.getDeclaredFields()) {
-                if (field.isAnnotationPresent(StorageExtraIdentifier.class)) {
-                    field.setAccessible(true);
-                    try {
-                        Object val = field.get(obj);
-                        if (val != null) {
-                            extraIdentifiers.add(val.toString());
-                        }
-                    } catch (Exception e) {
-                        logError("Failed to extract extra identifier", e);
+
+        for (
+            Class<?> current = object.getClass();
+
+            current != null && current != Object.class;
+
+            current = current.getSuperclass()
+        ) {
+            for (
+                Field field :
+                current.getDeclaredFields()
+            ) {
+                if (!field.isAnnotationPresent(StorageExtraIdentifier.class)) {
+                    continue;
+                }
+
+                field.setAccessible(
+                        true
+                );
+
+                try {
+                    Object value = field.get(object);
+
+                    if (
+                        value != null
+                    ) {
+                        extraIdentifiers.add(value.toString());
                     }
+
+                } catch (ReflectiveOperationException exception) {
+                    logError(
+                        "Failed to extract extra identifier",
+                        exception
+                    );
                 }
             }
         }
+
         return extraIdentifiers;
     }
 }

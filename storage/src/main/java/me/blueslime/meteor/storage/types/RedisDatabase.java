@@ -51,11 +51,6 @@ public class RedisDatabase extends StorageDatabase {
     }
 
     @Override
-    public CompletableFuture<Void> saveOrUpdateAsync(StorageObject obj) {
-        return runAsync(() -> saveOrUpdateSync(obj));
-    }
-
-    @Override
     public void saveOrUpdateSync(StorageObject obj) {
         if (obj == null) return;
         ensurePool();
@@ -109,11 +104,6 @@ public class RedisDatabase extends StorageDatabase {
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Optional<T>> loadByIdAsync(Class<T> clazz, String identifier) {
-        return supplyAsync(() -> loadByIdSync(clazz, identifier));
-    }
-
-    @Override
     public <T extends StorageObject> Optional<T> loadByIdSync(Class<T> clazz, String identifier) {
         ensurePool();
         try (Jedis j = jedisPool.getResource()) {
@@ -125,11 +115,6 @@ public class RedisDatabase extends StorageDatabase {
             logError("Failed loadByIdSync for " + clazz.getSimpleName(), e);
             return Optional.empty();
         }
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Optional<ReferencedObject>> loadByExtraIdentifierAsync(Class<T> clazz, String extraIdentifier) {
-        return supplyAsync(() -> loadByExtraIdentifierSync(clazz, extraIdentifier));
     }
 
     @Override
@@ -152,11 +137,6 @@ public class RedisDatabase extends StorageDatabase {
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteByIdAsync(Class<T> clazz, String identifier) {
-        return runAsync(() -> deleteByIdSync(clazz, identifier));
-    }
-
-    @Override
     public <T extends StorageObject> void deleteByIdSync(Class<T> clazz, String identifier) {
         ensurePool();
         try (Jedis j = jedisPool.getResource()) {
@@ -176,10 +156,6 @@ public class RedisDatabase extends StorageDatabase {
         }
     }
 
-    @Override
-    public <T extends StorageObject> CompletableFuture<Set<T>> matchAsync(Class<T> clazz, StorageQuery query) {
-        return supplyAsync(() -> matchSync(clazz, query));
-    }
 
     @Override
     public <T extends StorageObject> Set<T> matchSync(Class<T> clazz, StorageQuery query) {
@@ -187,18 +163,8 @@ public class RedisDatabase extends StorageDatabase {
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz, StorageQuery query) {
-        return supplyAsync(() -> countSync(clazz, query));
-    }
-
-    @Override
     public <T extends StorageObject> long countSync(Class<T> clazz, StorageQuery query) {
         return matchSync(clazz, query).size();
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz) {
-        return runAsync(() -> deleteAllSync(clazz));
     }
 
     @Override
@@ -214,11 +180,6 @@ public class RedisDatabase extends StorageDatabase {
         } catch (Exception e) {
             logError("Failed deleteAllSync for " + clazz.getSimpleName(), e);
         }
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Void> deleteAllAsync(Class<T> clazz, StorageQuery query) {
-        return runAsync(() -> deleteAllSync(clazz, query));
     }
 
     @Override
@@ -281,28 +242,13 @@ public class RedisDatabase extends StorageDatabase {
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Long> countAsync(Class<T> clazz) {
-        return countAsync(clazz, new StorageQuery());
-    }
-
-    @Override
     public <T extends StorageObject> boolean deleteExtraIdentifierSync(Class<T> clazz, String extraIdentifier) {
         return false;
     }
 
     @Override
-    public <T extends StorageObject> CompletableFuture<Boolean> deleteExtraIdentifierAsync(Class<T> clazz, String extraIdentifier) {
-        return null;
-    }
-
-    @Override
     public <T extends StorageObject> long countSync(Class<T> clazz) {
         return countSync(clazz, new StorageQuery());
-    }
-
-    @Override
-    public <T extends StorageObject> CompletableFuture<Set<T>> loadAllAsync(Class<T> clazz) {
-        return supplyAsync(() -> loadAllSync(clazz));
     }
 
     @Override
@@ -389,21 +335,4 @@ public class RedisDatabase extends StorageDatabase {
         }
         return extras;
     }
-
-    private <U> CompletableFuture<U> supplyAsync(SupplierWithException<U> supplier) {
-        return CompletableFuture.supplyAsync(() -> {
-            try { return supplier.get(); }
-            catch (Exception e) { throw new CompletionException(e); }
-        }, executor);
-    }
-
-    private CompletableFuture<Void> runAsync(RunnableWithException runnable) {
-        return CompletableFuture.runAsync(() -> {
-            try { runnable.run(); }
-            catch (Exception e) { throw new CompletionException(e); }
-        }, executor);
-    }
-
-    @FunctionalInterface private interface SupplierWithException<T> { T get() throws Exception; }
-    @FunctionalInterface private interface RunnableWithException { void run() throws Exception; }
 }

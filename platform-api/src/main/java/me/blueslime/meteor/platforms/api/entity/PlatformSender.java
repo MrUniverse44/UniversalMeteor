@@ -117,11 +117,8 @@ public abstract class PlatformSender<T, C> implements Sender {
         Object obj = configuration.get(path);
 
         if (obj instanceof List) {
-            // Since the List extends Collection, we can safely cast or pass it directly
-            // We use getStringList to ensure safety from the configuration handle
             send(configuration.getStringList(path), replacer);
         } else {
-            // It's a single object (String, Integer, etc.), convert to String
             send(replacer, obj != null ? obj.toString() : "");
         }
     }
