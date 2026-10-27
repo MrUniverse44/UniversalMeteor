@@ -249,16 +249,13 @@ public final class MenuCompiler {
             String menuId,
             int size,
             Map<
-                    String,
-                    InteractiveItemDefinition
-                    > definitions
+                String,
+                InteractiveItemDefinition
+            > definitions
     ) {
-        Map<Integer, String> occupied =
-                new HashMap<>();
-
         for (
-                InteractiveItemDefinition item :
-                definitions.values()
+            InteractiveItemDefinition item :
+            definitions.values()
         ) {
             switch (
                     item.placement()
@@ -283,23 +280,6 @@ public final class MenuCompiler {
                             );
                         }
 
-                        String previous =
-                                occupied.putIfAbsent(
-                                        slot,
-                                        item.id()
-                                );
-
-                        if (previous != null) {
-                            throw new MenuCompileException(
-                                    menuId,
-                                    "Items '"
-                                            + previous
-                                            + "' and '"
-                                            + item.id()
-                                            + "' both use slot "
-                                            + slot
-                            );
-                        }
                     }
                 }
 

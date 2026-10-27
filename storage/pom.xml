@@ -7,7 +7,7 @@
     <parent>
         <groupId>me.blueslime.meteor</groupId>
         <artifactId>UniversalMeteor</artifactId>
-        <version>3.3.2-UMR</version>
+        <version>3.3.4-UMR</version>
     </parent>
 
     <artifactId>storage</artifactId>
@@ -36,7 +36,7 @@
         <!-- Database Dependencies -->
         <dependency>
             <groupId>org.mongodb</groupId>
-            <artifactId>mongo-java-driver</artifactId>
+            <artifactId>mongodb-driver-sync</artifactId>
             <scope>compile</scope>
         </dependency>
         <dependency>

@@ -55,14 +55,8 @@ public final class StaticLanguageService
                         "resourcePath"
                 );
 
-        /*
-         * NO initialize()
-         * NO getPlugin()
-         * NO File I/O
-         * NO fetch()
-         *
-         * inside constructors.
-         */
+
+        registerImpl(LanguageService.class, this, true);
     }
 
     @Override

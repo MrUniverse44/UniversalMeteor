@@ -75,6 +75,52 @@ public abstract class SQLDatabase extends StorageDatabase {
 
     public abstract Connection getConnection() throws SQLException;
 
+    /**
+     * Runs a callback on ONE JDBC connection and commits all its writes
+     * together. PostgreSQL/MariaDB/SQLite can provide ACID transactions
+     * without a MongoDB replica set. The callback MUST use the supplied
+     * Connection for every query; ordinary saveOrUpdateSync() opens a
+     * different connection and is therefore NOT part of this transaction.
+     */
+    @FunctionalInterface
+    public interface SqlTransaction<T> {
+        T apply(Connection connection) throws SQLException;
+    }
+
+    public final <T> T inTransaction(SqlTransaction<T> work) throws SQLException {
+        java.util.Objects.requireNonNull(work, "work");
+        try (Connection connection = getConnection()) {
+            if (!connection.getAutoCommit()) {
+                throw new IllegalStateException("Expected a fresh JDBC connection with autoCommit=true");
+            }
+            connection.setAutoCommit(false);
+            boolean committed = false;
+            try {
+                T result = work.apply(connection);
+                connection.commit();
+                committed = true;
+                return result;
+            } catch (SQLException | RuntimeException | Error failure) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                }
+                throw failure;
+            } finally {
+                if (committed) {
+                    try {
+                        connection.setAutoCommit(true);
+                    } catch (SQLException ignored) {
+                        // Connection.close() follows. Do not mask original error.
+                    }
+                }
+                // On failed rollback, do NOT reset autoCommit=true because
+                // JDBC drivers may implicitly commit outstanding writes.
+            }
+        }
+    }
+
     protected abstract String quoteIdentifier(String identifier);
 
     protected abstract String buildCreateMainTableStatement(String quotedTable);

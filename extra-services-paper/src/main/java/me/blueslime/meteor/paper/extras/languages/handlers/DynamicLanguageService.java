@@ -154,6 +154,8 @@ public final class DynamicLanguageService implements LanguageService {
                 playerSpigotMethod != null &&
                         spigotLocaleMethod != null
         );
+
+        registerImpl(LanguageService.class, this, true);
     }
 
     @Override

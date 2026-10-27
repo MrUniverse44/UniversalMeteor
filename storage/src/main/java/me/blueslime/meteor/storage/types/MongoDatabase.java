@@ -2,18 +2,27 @@ package me.blueslime.meteor.storage.types;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.result.DeleteResult;
 import me.blueslime.meteor.storage.database.StorageDatabase;
+import me.blueslime.meteor.storage.database.AtomicDocumentStorage;
+import me.blueslime.meteor.storage.database.AtomicMutation;
 import me.blueslime.meteor.storage.interfaces.StorageExtraIdentifier;
 import me.blueslime.meteor.storage.interfaces.StorageIdentifier;
 import me.blueslime.meteor.storage.interfaces.StorageObject;
 import me.blueslime.meteor.storage.query.StorageQuery;
 import me.blueslime.meteor.storage.references.ReferencedObject;
 import org.bson.Document;
+import org.bson.codecs.DocumentCodec;
+import org.bson.codecs.EncoderContext;
+import org.bson.BsonBinaryWriter;
+import org.bson.io.BasicOutputBuffer;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -21,6 +30,8 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -28,7 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import static com.mongodb.client.model.Filters.eq;
 
 @SuppressWarnings("unused")
-public class MongoDatabase extends StorageDatabase {
+public class MongoDatabase extends StorageDatabase implements AtomicDocumentStorage {
 
     private volatile MongoClient mongoClient;
     private volatile com.mongodb.client.MongoDatabase database;
@@ -410,6 +421,96 @@ public class MongoDatabase extends StorageDatabase {
                 );
             }
         }
+    }
+
+    /**
+     * One-document operations work on a standalone MongoDB without a replica set.
+     * This is NOT a multi-document transaction API.
+     */
+    @Override
+    public boolean insertIfAbsentSync(StorageObject entity) {
+        Objects.requireNonNull(entity, "entity");
+        ensureConnected();
+        String id = extractIdentifier(entity);
+        if (id == null || id.isBlank()) {
+            throw new IllegalArgumentException("insertIfAbsentSync requires @StorageIdentifier");
+        }
+        Document doc = mapper().toDocument(entity);
+        if (!id.equals(String.valueOf(doc.get("_id")))) {
+            throw new IllegalArgumentException("Entity mapper must serialize its identifier as _id");
+        }
+        checkAtomicPayloadSize(doc);
+        MongoCollection<Document> collection = database.getCollection(entity.getClass().getSimpleName());
+        try {
+            collection.insertOne(doc);
+            return true;
+        } catch (MongoWriteException ex) {
+            if (ex.getError().getCode() != 11000) throw ex;
+            // Different unique-index violations MUST NOT be confused with a
+            // repeated idempotency key / already-existing primary key.
+            if (collection.find(eq("_id", id)).first() == null) throw ex;
+            return false;
+        }
+    }
+
+    @Override
+    public <T extends StorageObject> Optional<T> updateIfSync(
+            Class<T> type, String identifier, StorageQuery preconditions, AtomicMutation mutation) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(identifier, "identifier");
+        Objects.requireNonNull(mutation, "mutation");
+        if (identifier.isBlank()) throw new IllegalArgumentException("identifier cannot be blank");
+        ensureConnected();
+        Document predicate = new Document("_id", identifier);
+        if (preconditions != null && !preconditions.isEmpty()) {
+            // StorageQuery predates AtomicDocumentStorage; do not allow
+            // untrusted callers to smuggle special BSON field names.
+            for (StorageQuery.Condition condition : preconditions.getConditions()) {
+                if (!condition.key().matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
+                    throw new IllegalArgumentException("Invalid atomic predicate field: " + condition.key());
+                }
+            }
+            predicate = new Document("$and", List.of(predicate, buildBsonFilter(preconditions)));
+        }
+        Document patch = new Document();
+        if (!mutation.sets().isEmpty()) {
+            patch.put("$set", new Document(mutation.sets()));
+        }
+        if (!mutation.increments().isEmpty()) {
+            patch.put("$inc", new Document(mutation.increments()));
+        }
+        if (!mutation.unsets().isEmpty()) {
+            Document unsets = new Document();
+            for (String field : mutation.unsets()) unsets.put(field, "");
+            patch.put("$unset", unsets);
+        }
+        checkAtomicPayloadSize(patch);
+        // Atomic on the server: read/modify/write is ONE MongoDB command.
+        // No upsert, no separate read, no Java synchronized blocks.
+        Document updated = database.getCollection(type.getSimpleName())
+                .findOneAndUpdate(predicate, patch,
+                        new FindOneAndUpdateOptions().upsert(false)
+                                .returnDocument(ReturnDocument.AFTER));
+        return Optional.ofNullable(mapper().fromDocument(type, updated));
+    }
+
+    private static void checkAtomicPayloadSize(Document document) {
+        try (BasicOutputBuffer buffer = new BasicOutputBuffer();
+             BsonBinaryWriter writer = new BsonBinaryWriter(buffer)) {
+            new DocumentCodec().encode(writer, document, EncoderContext.builder().build());
+            if (buffer.getSize() > 4 * 1024 * 1024) {
+                throw new IllegalArgumentException("Atomic MongoDB payload exceeds 4 MiB");
+            }
+        }
+    }
+
+    public CompletableFuture<Boolean> insertIfAbsentAsync(StorageObject entity) {
+        return supplyAsync(() -> insertIfAbsentSync(entity));
+    }
+
+    public <T extends StorageObject> CompletableFuture<Optional<T>> updateIfAsync(
+            Class<T> type, String identifier, StorageQuery preconditions, AtomicMutation mutation) {
+        return supplyAsync(() -> updateIfSync(type, identifier, preconditions, mutation));
     }
 
     @Override

@@ -23,6 +23,7 @@ import me.blueslime.meteor.paper.extras.item.definition.ItemRenderPolicy;
 import me.blueslime.meteor.paper.extras.runtime.compiler.CompilationReporter;
 import me.blueslime.meteor.platforms.api.configuration.handle.ConfigurationHandle;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -308,8 +309,10 @@ public final class ItemCompiler {
             }
         }
 
-        return Map.copyOf(
+        return Collections.unmodifiableMap(
+            new LinkedHashMap<>(
                 result
+            )
         );
     }
 

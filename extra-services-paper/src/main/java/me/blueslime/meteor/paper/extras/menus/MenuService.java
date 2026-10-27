@@ -731,12 +731,12 @@ public final class MenuService
         }
 
         /*
-         * Register exactly the same visible definitions
-         * that were successfully prepared and placed.
+         * Only register animations for definitions that actually
+         * won a runtime slot. A visible candidate may have lost
+         * its slot to an earlier visible candidate.
          */
         registerAnimations(
-                session,
-                visible
+                session
         );
 
         return MenuOpenResult.opened(
@@ -745,28 +745,24 @@ public final class MenuService
     }
 
     private void registerAnimations(
-            MenuSession session,
-            Collection<PreparedMenuItem> items
+            MenuSession session
     ) {
-        if (
-                session == null ||
-                        items == null ||
-                        items.isEmpty()
-        ) {
+        if (session == null) {
             return;
         }
 
+        /*
+         * MenuSession is the authoritative runtime mapping.
+         * Therefore only definitions that currently own at least
+         * one slot receive an animation task.
+         */
         for (
-                PreparedMenuItem prepared :
-                items
+                InteractiveItemDefinition definition :
+                session.boundItems()
         ) {
-            if (prepared == null) {
-                continue;
-            }
-
             registerAnimation(
                     session,
-                    prepared.definition()
+                    definition
             );
         }
     }
@@ -1015,115 +1011,20 @@ public final class MenuService
             );
         }
 
-        InteractiveItemDefinition definition =
-                session
-                        .definition()
-                        .item(itemId)
-                        .orElse(null);
-
-        if (definition == null) {
+        if (
+            session
+                .definition()
+                .item(itemId)
+                .isEmpty()
+        ) {
             return CompletableFuture.completedFuture(
                     false
             );
         }
 
-        CompletableFuture<Boolean> future =
-                new CompletableFuture<>();
-
-        executor.submit(() -> {
-            try {
-                if (
-                        sessions.get(playerId)
-                                != session ||
-                                !session.isActive()
-                ) {
-                    future.complete(false);
-                    return;
-                }
-
-                ExecutionContext context =
-                        createItemContext(
-                                session.contextSnapshot(),
-                                definition.id()
-                        );
-
-                ConditionEvaluation evaluation =
-                        conditions.evaluateNow(
-                                definition.visibility(),
-                                context
-                        );
-
-                boolean result =
-                        runtime
-                                .mainThread()
-                                .waitFor(() -> {
-                                    if (
-                                            sessions.get(playerId)
-                                                    != session ||
-                                                    !session.isActive()
-                                    ) {
-                                        return false;
-                                    }
-
-                                    animations.cancel(
-                                            session.sessionId(),
-                                            definition.id()
-                                    );
-
-                                    Set<Integer> previous =
-                                            session.unbindItem(
-                                                    definition.id()
-                                            );
-
-                                    for (int slot : previous) {
-                                        session
-                                                .getInventory()
-                                                .setItem(
-                                                        slot,
-                                                        null
-                                                );
-                                    }
-
-                                    if (!evaluation.passed()) {
-                                        return true;
-                                    }
-
-                                    Player player =
-                                            Bukkit.getPlayer(
-                                                    playerId
-                                            );
-
-                                    if (player == null) {
-                                        return false;
-                                    }
-
-                                    place(
-                                            session,
-                                            player,
-                                            new PreparedMenuItem(
-                                                    definition,
-                                                    context
-                                            )
-                                    );
-
-                                    registerAnimation(
-                                            session,
-                                            definition
-                                    );
-
-                                    return true;
-                                });
-
-                future.complete(result);
-
-            } catch (Throwable throwable) {
-                future.completeExceptionally(
-                        throwable
-                );
-            }
-        });
-
-        return future;
+        return refreshAll(
+                playerId
+        );
     }
 
     public CompletableFuture<Boolean> refreshAll(
@@ -1244,8 +1145,7 @@ public final class MenuService
                                             );
 
                                     registerAnimations(
-                                            session,
-                                            visible
+                                            session
                                     );
 
                                     return true;
@@ -1271,13 +1171,6 @@ public final class MenuService
         InteractiveItemDefinition definition =
                 prepared.definition();
 
-        ItemStack rendered =
-                renderer.renderSync(
-                        definition.item(),
-                        prepared.context(),
-                        player
-                );
-
         Inventory inventory =
                 session.getInventory();
 
@@ -1285,10 +1178,36 @@ public final class MenuService
                 definition.placement()
         ) {
             case SlotPlacement slots -> {
-                for (
-                        int slot :
-                        slots.slots()
-                ) {
+                List<Integer> targets =
+                        new ArrayList<>(
+                                slots.slots().size()
+                        );
+
+                for (int slot : slots.slots()) {
+                    if (
+                            session.canBind(
+                                    slot,
+                                    definition.id()
+                            )
+                    ) {
+                        targets.add(
+                                slot
+                        );
+                    }
+                }
+
+                if (targets.isEmpty()) {
+                    return;
+                }
+
+                ItemStack rendered =
+                        renderer.renderSync(
+                                definition.item(),
+                                prepared.context(),
+                                player
+                        );
+
+                for (int slot : targets) {
                     inventory.setItem(
                             slot,
                             rendered.clone()
@@ -1308,6 +1227,13 @@ public final class MenuService
                 if (slot < 0) {
                     return;
                 }
+
+                ItemStack rendered =
+                        renderer.renderSync(
+                                definition.item(),
+                                prepared.context(),
+                                player
+                        );
 
                 inventory.setItem(
                         slot,
